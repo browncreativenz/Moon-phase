@@ -14,6 +14,10 @@
   --town-far:   #10192c;
   --town-back:  #080e1c;
   --town-front: #020408;
+  /* In front of everything and lit from below by the street, so it breaks the
+     ramp on purpose: lighter than the layer behind it, and warm where the
+     distances are cool. Overlap is what says "in front"; tone says "close". */
+  --town-fore:  #15141e;
   --wire:       #161c2b;
   --town-rim:   #3d4c6b;      /* moonlight catching the rooftops */
   --win:        #e0a355;

@@ -3,7 +3,7 @@
  * knows nothing about the moon beyond where on screen it sits.
  */
 
-import { seeded, mk, SHAPES, roofClutter, windowGrid, compose, maybeCrane } from "./city.js";
+import { seeded, mk, SHAPES, LOWRISE, roofClutter, windowGrid, compose, maybeCrane } from "./city.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -44,6 +44,7 @@ const C = {
   far:   CSS.getPropertyValue("--town-far").trim()   || "#0d1526",
   back:  CSS.getPropertyValue("--town-back").trim()  || "#080b16",
   front: CSS.getPropertyValue("--town-front").trim() || "#020408",
+  fore:  CSS.getPropertyValue("--town-fore").trim()  || "#11121c",
   wire:  CSS.getPropertyValue("--wire").trim()       || "#161c2b",
   rim:   CSS.getPropertyValue("--town-rim").trim()   || "#3d4c6b",
   win:   CSS.getPropertyValue("--win").trim()        || "#e0a355",
@@ -117,6 +118,16 @@ let birds = [];
 
 /* Draw one depth layer. Nearer layers get windows and roof clutter; the far
    layer is a bare ridge, which is what distance actually looks like. */
+/* Scale a hex colour's channels. Used to vary the foreground building by
+   building: several overlapping shapes in one flat tone read as a single blob,
+   and a few percent of lightness between them is enough to pull them apart. */
+function shade(hex, k){
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return "#" + (((ch((n >> 16) & 255) << 16) | (ch((n >> 8) & 255) << 8) | ch(n & 255)) >>> 0)
+    .toString(16).padStart(6, "0");
+}
+
 function layer(g, rng, width, base, u, cfg, fill, detail){
   const placements = compose(rng, width, u, cfg);
   if (detail === "far") maybeCrane(rng, width, u, placements);
@@ -124,10 +135,11 @@ function layer(g, rng, width, base, u, cfg, fill, detail){
   for (const b of placements){
     const shape = SHAPES[b.type];
     if (!shape) continue;
-    const top = shape(g, b.x, b.w, b.h, base, u, fill, rng);
+    const tone = cfg.jitter ? shade(fill, 1 - cfg.jitter + rng() * cfg.jitter * 2) : fill;
+    const top = shape(g, b.x, b.w, b.h, base, u, tone, rng);
     if (top === null || top === undefined) continue;      // trees and masts have no facade
 
-    if (detail !== "far" && b.type === "flat") roofClutter(g, b.x, b.w, top, u, fill, rng);
+    if (detail !== "far" && b.type === "flat") roofClutter(g, b.x, b.w, top, u, tone, rng);
     if (detail !== "near") continue;
 
     for (const win of windowGrid(b.w, top, base, u, rng)){
@@ -257,6 +269,15 @@ export function town(){
   }
 
   powerLine(svg, width, base, u, rng);
+
+  // Low-rise, closest of all: a bigger unit so it reads as near, kept short so
+  // only roofs and upper storeys show, and overlapping heavily -- both each
+  // other and the bases of the towers behind, which is what sells the depth.
+  const fore = mk("g", {});
+  svg.appendChild(fore);
+  layer(fore, rng, width, base, u * 1.5, { gapBase: 2, scale: 1, heroAt: 0.5,
+    allowHero: false, minH: 9, maxH: 21, fillers: LOWRISE, accents: [],
+    overlap: 0.42, wMin: 14, wSpread: 15, jitter: 0.12 }, C.fore, "near");
 
   host.textContent = "";
   host.appendChild(svg);

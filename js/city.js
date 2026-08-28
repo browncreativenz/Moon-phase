@@ -229,11 +229,85 @@ function waterTower(g, x, w, h, base, u, fill){
   return null;
 }
 
+
+/* ===================== low-rise, for the foreground ===================== */
+
+/* These sit in front of everything, close to the viewer, so they are drawn at
+   a larger unit and kept short: you see their roofs and upper storeys and the
+   street they stand on is off the bottom of the frame. */
+
+function house(g, x, w, h, base, u, fill, rng){
+  const roof = h * 0.42, top = base - h + roof;
+  g.appendChild(mk("path", { d: `M${f1(x - u * 1.4)},${f1(top)} L${f1(x + w / 2)},${f1(base - h)}` +
+    ` L${f1(x + w + u * 1.4)},${f1(top)} Z`, fill }));
+  g.appendChild(mk("rect", { x: f1(x), y: f1(top), width: f1(w), height: f1(base - top), fill }));
+  const cx = x + w * (rng() < 0.5 ? 0.24 : 0.76);
+  const ch = u * (2.2 + rng() * 1.6);
+  g.appendChild(mk("rect", { x: f1(cx), y: f1(top - roof * 0.55 - ch), width: f1(Math.max(1.4, u * 0.9)),
+                             height: f1(ch + roof * 0.55), fill }));
+  return top;
+}
+
+/* A run of adjoining houses, each stepping a little, with one shared parapet. */
+function terrace(g, x, w, h, base, u, fill, rng){
+  const bays = 3 + Math.floor(rng() * 2);
+  const bw = w / bays;
+  let highest = base;
+  for (let i = 0; i < bays; i++){
+    const bh = h * (0.78 + rng() * 0.22);
+    const top = base - bh;
+    highest = Math.min(highest, top);
+    g.appendChild(mk("rect", { x: f1(x + i * bw), y: f1(top), width: f1(bw + 0.5), height: f1(bh), fill }));
+    g.appendChild(mk("rect", { x: f1(x + i * bw - u * 0.4), y: f1(top - u * 0.8),
+                               width: f1(bw + u * 0.8), height: f1(u * 0.8), fill }));
+  }
+  return highest + u;
+}
+
+/* Mono-pitch lean-to: one wall taller than the other. */
+function shed(g, x, w, h, base, u, fill, rng){
+  const tall = rng() < 0.5;
+  const hi = base - h, lo = base - h * 0.62;
+  g.appendChild(mk("path", { d: tall
+    ? `M${f1(x)},${f1(hi)} L${f1(x + w)},${f1(lo)} L${f1(x + w)},${f1(base)} L${f1(x)},${f1(base)} Z`
+    : `M${f1(x)},${f1(lo)} L${f1(x + w)},${f1(hi)} L${f1(x + w)},${f1(base)} L${f1(x)},${f1(base)} Z`,
+    fill }));
+  return base - h * 0.55;
+}
+
+/* North-light warehouse roof. The best silhouette in the low-rise set. */
+function sawtooth(g, x, w, h, base, u, fill, rng){
+  const teeth = 3 + Math.floor(rng() * 2);
+  const tw = w / teeth, top = base - h, valley = top + h * 0.38;
+  let d = `M${f1(x)},${f1(base)} L${f1(x)},${f1(top)}`;
+  for (let i = 0; i < teeth; i++){
+    const x0 = x + i * tw;
+    d += ` L${f1(x0 + tw)},${f1(valley)}`;
+    if (i < teeth - 1) d += ` L${f1(x0 + tw)},${f1(top)}`;
+  }
+  d += ` L${f1(x + w)},${f1(base)} Z`;
+  g.appendChild(mk("path", { d, fill }));
+  return valley + u;
+}
+
+/* Squat lock-up with a roller door band. */
+function lockup(g, x, w, h, base, u, fill){
+  const top = base - h;
+  g.appendChild(mk("rect", { x: f1(x), y: f1(top), width: f1(w), height: f1(h), fill }));
+  g.appendChild(mk("rect", { x: f1(x - u * 0.6), y: f1(top - u * 0.9),
+                             width: f1(w + u * 1.2), height: f1(u * 0.9), fill }));
+  return top;
+}
+
 export const SHAPES = {
   flat: flatRoof, pitch: pitchRoof, mansard: mansardRoof, spire: spireRoof,
   deco: decoRoof, dome: domeRoof, stack, billboard, crane,
-  conifer, broadleaf, tower: waterTower
+  conifer, broadleaf, tower: waterTower,
+  house, terrace, shed, sawtooth, lockup
 };
+
+/* The low-rise set the foreground layer draws from. */
+export const LOWRISE = ["house", "house", "terrace", "shed", "sawtooth", "lockup"];
 
 /* ===================== roof clutter ===================================== */
 
@@ -354,7 +428,9 @@ function envelope(t, heroAt){
 }
 
 export function compose(rng, width, u, cfg){
-  const { gapBase, scale, heroAt, allowHero, minH, maxH, trees = [] } = cfg;
+  const { gapBase, scale, heroAt, allowHero, minH, maxH, trees = [],
+          fillers = FILLERS, accents = ACCENTS, overlap = 0.22,
+          widen = 1, wMin = 18, wSpread = 22 } = cfg;
   const out = [];
   let x = -u * 10;
   let sinceAccent = 2, sinceTree = 2, heroDone = !allowHero, lastType = null;
@@ -391,8 +467,8 @@ export function compose(rng, width, u, cfg){
         ? (minH + (maxH - minH) * 0.62) * env * (0.85 + rng() * 0.35)
         : (minH + (maxH - minH) * 0.16) * env * (0.8 + rng() * 0.4);
       sinceTree = -1;
-    } else if (sinceAccent >= 1 && rng() < 0.32){
-      type = draw(ACCENTS);
+    } else if (accents.length && sinceAccent >= 1 && rng() < 0.32){
+      type = draw(accents);
       w = 15 + rng() * 12;
       h = (minH + (maxH - minH) * (type === "stack" ? 0.85 : 0.6)) * env * (0.85 + rng() * 0.3);
       sinceAccent = -1;
@@ -401,25 +477,25 @@ export function compose(rng, width, u, cfg){
       // but with four of them on a phone screen a run of identical kinds is
       // most of what you see, so one retry breaks the run without making the
       // plain ones rare.
-      type = FILLERS[(rng() * FILLERS.length) | 0];
-      if (type === lastType) type = FILLERS[(rng() * FILLERS.length) | 0];
-      w = 18 + rng() * 22;
+      type = fillers[(rng() * fillers.length) | 0];
+      if (type === lastType) type = fillers[(rng() * fillers.length) | 0];
+      w = wMin + rng() * wSpread;
       h = (minH + (maxH - minH) * rng() * 0.9) * env;
     }
     lastType = type;
     sinceAccent++; sinceTree++;
 
     h = Math.max(minH * 0.5, Math.min(maxH, h)) * scale;
-    out.push({ type, x, w: w * u, h: h * u });
+    out.push({ type, x, w: w * u * widen, h: h * u });
 
     // mostly a gap, occasionally a genuine overlap so the row reads as a city
     // with depth in it rather than a fence of separate objects
     const spread = 1 + 1.1 * t;
     const isTree = type === "conifer" || type === "broadleaf";
-    const gap = (!isTree && rng() < 0.22)
-      ? -w * u * (0.06 + rng() * 0.16)
+    const gap = (!isTree && rng() < overlap)
+      ? -w * u * widen * (0.06 + rng() * 0.16)
       : u * gapBase * spread * (0.5 + rng()) + (isTree ? u * 4 : 0);
-    x += w * u + gap;
+    x += w * u * widen + gap;
   }
   return out;
 }
