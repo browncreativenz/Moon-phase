@@ -150,7 +150,7 @@ function reveal(){
 
 // Render first so the text column is filled and can be measured; layout()
 // sizes the band from it and builds the skyline; then render again, because
-// the moonlight needs the rim-light group layout() creates.
+// the moonlight rides the roof edges layout() draws.
 initMoon();
 render();
 layout();

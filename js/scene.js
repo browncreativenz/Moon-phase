@@ -44,9 +44,9 @@ const C = {
   far:   CSS.getPropertyValue("--town-far").trim()   || "#0d1526",
   back:  CSS.getPropertyValue("--town-back").trim()  || "#080b16",
   front: CSS.getPropertyValue("--town-front").trim() || "#020408",
-  fore:  CSS.getPropertyValue("--town-fore").trim()  || "#11121c",
+  fore:  CSS.getPropertyValue("--town-fore").trim()  || "#010206",
+  edge:  CSS.getPropertyValue("--town-edge").trim()  || "#2a3550",
   wire:  CSS.getPropertyValue("--wire").trim()       || "#161c2b",
-  rim:   CSS.getPropertyValue("--town-rim").trim()   || "#3d4c6b",
   win:   CSS.getPropertyValue("--win").trim()        || "#e0a355",
   tv:    CSS.getPropertyValue("--win-tv").trim()     || "#7ea6d8"
 };
@@ -128,18 +128,47 @@ function shade(hex, k){
     .toString(16).padStart(6, "0");
 }
 
+/* Draw one depth layer.
+ *
+ * Every building is drawn twice: once shifted up a little in the edge colour,
+ * then again in its own fill on top, so only a thin line survives along each
+ * roofline. Two fills this dark differ by almost nothing, but an edge against
+ * them differs by roughly ten times as much, and a boundary is what the eye
+ * actually uses to separate one shape from another.
+ *
+ * Interleaved rather than cloned as a whole group, so a building overlapping
+ * its neighbour gets an edge over it too, not just over the layer behind.
+ */
 function layer(g, rng, width, base, u, cfg, fill, detail){
   const placements = compose(rng, width, u, cfg);
   if (detail === "far") maybeCrane(rng, width, u, placements);
 
+  const edge = cfg.edge;
+
   for (const b of placements){
     const shape = SHAPES[b.type];
     if (!shape) continue;
-    const tone = cfg.jitter ? shade(fill, 1 - cfg.jitter + rng() * cfg.jitter * 2) : fill;
-    const top = shape(g, b.x, b.w, b.h, base, u, tone, rng);
+
+    // One sub-seed drawn per building and spent twice, so the edge copy gets
+    // the identical chimney, bay count and lean as the fill it sits behind.
+    const sub = (rng() * 4294967296) >>> 0;
+
+    if (edge){
+      const eg = mk("g", { transform: `translate(0,${(-edge.lift * u).toFixed(2)})`,
+                           opacity: edge.opacity });
+      eg.setAttribute("class", "edge");
+      eg.dataset.base = edge.opacity;
+      eg.dataset.boost = edge.boost || 0;
+      shape(eg, b.x, b.w, b.h, base, u, C.edge, seeded(sub));
+      g.appendChild(eg);
+    }
+
+    const top = shape(g, b.x, b.w, b.h, base, u, fill, seeded(sub));
     if (top === null || top === undefined) continue;      // trees and masts have no facade
 
-    if (detail !== "far" && b.type === "flat") roofClutter(g, b.x, b.w, top, u, tone, rng);
+    if ((detail === "mid" || detail === "near") && b.type === "flat"){
+      roofClutter(g, b.x, b.w, top, u, fill, rng);
+    }
     if (detail !== "near") continue;
 
     for (const win of windowGrid(b.w, top, base, u, rng)){
@@ -223,12 +252,14 @@ export function town(){
   const far = mk("g", { opacity: 0.85 });
   svg.appendChild(far);
   layer(far, rng, width, base, u, { gapBase: 11, scale: 0.42, heroAt: 0.72,
-    allowHero: false, minH: 30, maxH: 62, trees: ["broadleaf"] }, C.far, "far");
+    allowHero: false, minH: 30, maxH: 62, trees: ["broadleaf"],
+    edge: { colour: C.edge, opacity: 0.10, boost: 0.05, lift: 0.22 } }, C.far, "far");
 
   const back = mk("g", {});
   svg.appendChild(back);
   layer(back, rng, width, base, u, { gapBase: 8, scale: 0.66, heroAt: 0.66,
-    allowHero: false, minH: 38, maxH: 78, trees: ["broadleaf", "conifer"] }, C.back, "mid");
+    allowHero: false, minH: 38, maxH: 78, trees: ["broadleaf", "conifer"],
+    edge: { colour: C.edge, opacity: 0.20, boost: 0.14, lift: 0.28 } }, C.back, "mid");
 
   // A low haze band, behind the near layer so it pushes the distance back
   // without washing the foreground out.
@@ -244,20 +275,8 @@ export function town(){
   const front = mk("g", {});
   svg.appendChild(front);
   layer(front, rng, width, base, u, { gapBase: 5, scale: 1, heroAt: 0.34,
-    allowHero: true, minH: 48, maxH: 92, trees: ["conifer"] }, C.front, "near");
-
-  // Moonlight: the same near layer again, a touch higher and in a cool colour,
-  // sitting behind the real one so only the moon-facing edges peek out.
-  const rim = front.cloneNode(true);
-  rim.id = "rim";
-  rim.setAttribute("transform", `translate(0,${(-Math.max(1, u * 1.1)).toFixed(2)})`);
-  rim.setAttribute("opacity", "0");
-  rim.querySelectorAll(".win").forEach((n) => n.remove());
-  rim.querySelectorAll("*").forEach((n) => {
-    if (n.getAttribute("fill")) n.setAttribute("fill", C.rim);
-    if (n.getAttribute("stroke")) n.setAttribute("stroke", C.rim);
-  });
-  svg.insertBefore(rim, front);
+    allowHero: true, minH: 48, maxH: 92, trees: ["conifer"],
+    edge: { colour: C.edge, opacity: 0.30, boost: 0.30, lift: 0.34 } }, C.front, "near");
 
   // One window has a television in it. Picked from the seeded stream, so it is
   // the same window every night.
@@ -277,7 +296,8 @@ export function town(){
   svg.appendChild(fore);
   layer(fore, rng, width, base, u * 1.5, { gapBase: 2, scale: 1, heroAt: 0.5,
     allowHero: false, minH: 9, maxH: 21, fillers: LOWRISE, accents: [],
-    overlap: 0.42, wMin: 14, wSpread: 15, jitter: 0.12 }, C.fore, "near");
+    overlap: 0.42, wMin: 14, wSpread: 15,
+    edge: { colour: C.edge, opacity: 0.52, boost: 0.38, lift: 0.30 } }, C.fore, "silhouette");
 
   host.textContent = "";
   host.appendChild(svg);
@@ -332,8 +352,10 @@ function flicker(){
  */
 /* Below this the city is a glitchy sliver rather than a skyline, so it gives up
    its space entirely: on a small screen at large text the readings matter and
-   the scenery does not. town() already no-ops at zero height. */
-const BAND_MIN = 96, BAND_MAX = 340, BREATHING = 26;
+   the scenery does not. town() already no-ops at zero height. The ceiling is
+   high because tall phones genuinely have the room -- the old 340 was leaving
+   up to 90px of it unused. */
+const BAND_MIN = 96, BAND_MAX = 430, BREATHING = 20;
 
 export function fitBand(){
   const flow = [...document.body.children].filter((n) => {
@@ -366,11 +388,16 @@ export function startLights(){
   if (!still) setTimeout(flicker, rnd(3000, 7000));
 }
 
-/* Moonlight on the rooftops, 0..1. Driven by how bright and how high the moon
-   actually is; a low or thin moon lights nothing. */
+/* Moonlight on the rooftops, 0..1. It rides the same roof edges the layers are
+   separated by -- one mechanism, brighter when the moon is high and full --
+   rather than a second copy of the skyline stacked on top of them. */
 export function setMoonlight(v){
-  const rim = document.getElementById("rim");
-  if (rim) rim.setAttribute("opacity", Math.max(0, Math.min(0.85, v)).toFixed(3));
+  const k = Math.max(0, Math.min(1, v));
+  document.querySelectorAll("#town .edge").forEach((e) => {
+    const base = parseFloat(e.dataset.base) || 0;
+    const boost = parseFloat(e.dataset.boost) || 0;
+    e.setAttribute("opacity", Math.min(0.9, base + boost * k).toFixed(3));
+  });
 }
 
 /* ===================== meteors ========================================== */

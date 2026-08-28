@@ -9,17 +9,19 @@
   --earthshine: #56658c;      /* the unlit face, lit by the Earth */
   --muted:      #79839c;
   --hair:       rgba(121,131,156,.22);
-  /* three depth steps: distance washes contrast out and cools the hue,
-     it does not only make things smaller */
-  --town-far:   #10192c;
-  --town-back:  #080e1c;
-  --town-front: #020408;
-  /* In front of everything and lit from below by the street, so it breaks the
-     ramp on purpose: lighter than the layer behind it, and warm where the
-     distances are cool. Overlap is what says "in front"; tone says "close". */
-  --town-fore:  #15141e;
+  /* Depth ramp, monotonic: lighter is further. Below about L=0.008 there is
+     no usable separation left between two fills, so these only have to avoid
+     fighting the real cue -- see --town-edge. */
+  --town-far:   #16203a;
+  --town-back:  #0e1526;
+  --town-front: #080d18;
+  --town-fore:  #010206;
+
+  /* The actual separator. A thin line along each roofline carries about ten
+     times the luminance difference two dark fills can, which is why the
+     foreground reads as in front at all. */
+  --town-edge:  #2a3550;
   --wire:       #161c2b;
-  --town-rim:   #3d4c6b;      /* moonlight catching the rooftops */
   --win:        #e0a355;
   --win-tv:     #7ea6d8;      /* one window with a television in it */
 
@@ -128,7 +130,7 @@ body{
   font-family:var(--serif);
   font-size:clamp(25px,7vw,32px);
   font-weight:400;letter-spacing:.005em;
-  margin:30px 0 0;text-align:center;line-height:1.15;
+  margin:24px 0 0;text-align:center;line-height:1.15;
 }
 
 .stats{
