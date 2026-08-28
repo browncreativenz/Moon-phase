@@ -1,0 +1,135 @@
+/* Moon -- phase display over a small city.
+   Palette and layout only; scene.js paints the sky and skyline. */
+
+:root{
+  --ink:        #0f1320;
+  --ink-lift:   #1b2233;
+  --bone:       #f2ece0;
+  --bone-dim:   #ddd3c0;
+  --muted:      #79839c;
+  --hair:       rgba(121,131,156,.22);
+  --town-back:  #080b16;
+  --town-front: #020408;
+  --wire:       #161c2b;
+  --win:        #e0a355;
+
+  --town-h: clamp(110px, 20vh, 190px);
+  --moon-y: 0px;              /* reserved: real altitude above the roofline */
+
+  --serif: "Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans: ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--bone);
+  font-family:var(--sans);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:calc(env(safe-area-inset-top) + 24px) 24px calc(var(--town-h) + 16px);
+  overflow:hidden;
+}
+
+/* The sky wheels very slowly around the moon, like a long exposure.
+   scene.js sets left/top/width/height: the field has to be fitted to the
+   farthest screen corner or the rotation drags bare patches into view. */
+#sky{
+  position:fixed;left:0;top:0;width:100%;height:100%;
+  pointer-events:none;z-index:0;
+}
+.star{
+  position:absolute;border-radius:50%;background:var(--bone);
+  opacity:var(--o);will-change:opacity;
+}
+.star.lg{ box-shadow:0 0 4px 1px rgba(242,236,224,.30) }
+@media (prefers-reduced-motion:no-preference){
+  #sky{animation:wheel 900s linear infinite}
+  .star{animation:twinkle var(--dur) ease-in-out var(--delay) infinite}
+}
+@keyframes wheel{ to{ transform:rotate(360deg) } }
+@keyframes twinkle{
+  0%,100%{ opacity:calc(var(--o) * .55) }
+  50%    { opacity:var(--o) }
+}
+
+/* streetlight bleed: sits above the stars, below the buildings, and reaches
+   higher than the band so tall shapes still read against a lifted sky */
+#glow{
+  position:fixed;left:-10%;bottom:0;width:120%;
+  height:calc(var(--town-h) * 2.2);
+  z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 55% 48% at 50% 100%, rgba(235,182,112,.20), transparent 72%),
+    radial-gradient(ellipse 95% 85% at 50% 100%, rgba(224,163,85,.11),  transparent 70%),
+    radial-gradient(ellipse 120% 100% at 50% 100%, rgba(126,140,178,.13), transparent 75%);
+}
+
+/* town sits in front of the sky, so stars set behind the roofline */
+#town{
+  position:fixed;left:0;right:0;bottom:0;
+  height:var(--town-h);
+  pointer-events:none;z-index:2;
+}
+#town svg{display:block;width:100%;height:100%}
+.win{ transition:opacity 1.2s ease }
+
+.date,.moon-wrap,.name,.stats,.next,.foot{position:relative;z-index:1}
+
+.date{
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:24px;
+}
+
+.moon-wrap{
+  width:min(56vw,210px);aspect-ratio:1;
+  transform:translateY(var(--moon-y));
+}
+.moon-wrap svg{display:block;width:100%;height:100%;overflow:visible}
+
+.name{
+  font-family:var(--serif);
+  font-size:clamp(25px,7vw,32px);
+  font-weight:400;letter-spacing:.005em;
+  margin:30px 0 0;text-align:center;line-height:1.15;
+}
+
+.stats{
+  margin-top:11px;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);text-align:center;
+}
+
+.next{
+  margin-top:22px;padding-top:13px;
+  border-top:1px solid var(--hair);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);text-align:center;min-width:180px;
+}
+
+.foot{margin-top:4px}
+button{
+  appearance:none;background:none;border:0;
+  font-family:var(--sans);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);padding:9px 14px;cursor:pointer;border-radius:2px;
+}
+button:hover{color:var(--bone-dim)}
+button:focus-visible{outline:1px solid var(--muted);outline-offset:2px}
+
+@media (prefers-reduced-motion:no-preference){
+  .fade{animation:fade .9s ease both}
+  /* land on the element's own offset, not "none", or this would override
+     .moon-wrap's translateY(--moon-y) for good once the fade settles */
+  @keyframes fade{
+    from{opacity:0;transform:translateY(calc(var(--moon-y) + 6px))}
+    to  {opacity:1;transform:translateY(var(--moon-y))}
+  }
+}
+@media (max-height:620px){
+  .name{margin-top:20px}
+  .next{margin-top:16px}
+  .date{margin-bottom:16px}
+}
