@@ -114,7 +114,6 @@ export function stars(){
 /* ===================== town ============================================= */
 
 let wins = [];
-let birds = [];
 
 /* Draw one depth layer. Nearer layers get windows and roof clutter; the far
    layer is a bare ridge, which is what distance actually looks like. */
@@ -208,8 +207,8 @@ function layer(g, rng, width, base, u, cfg, fill, detail){
   }
 }
 
-/* Two wires with a real catenary sag, and a few birds. */
-function powerLine(g, width, base, u, rng){
+/* Two wires with a real catenary sag. */
+function powerLine(g, width, base, u){
   const poleH = u * 46, poleW = Math.max(1.2, u * 0.9);
   const xs = [-width * 0.05, width * 0.27, width * 0.79, width * 1.05];
   const top = base - poleH;
@@ -235,44 +234,6 @@ function powerLine(g, width, base, u, rng){
                                width: (u * 6).toFixed(1), height: Math.max(1, u * 0.7).toFixed(1),
                                fill: C.front }));
   }
-
-  /* Birds, placed on the wire by evaluating the curve the wire is actually
-     drawn with rather than approximating it.
-     
-     Each span is a quadratic Bezier from (x0,top) to (x1,top) whose control
-     point sits at the midpoint, so x is linear in s and y is exactly
-     top + 2s(1-s)d. Two things were wrong before: the segment was chosen with
-     floor(t*3) while x was interpolated across the whole span, and the three
-     spans are not equal, so a bird could land outside its own segment, take a
-     negative sag and float in the sky. And the old sag was double the truth --
-     a quadratic Bezier dips half its control offset, not all of it. */
-  const SAG = 0.16;
-  const n = 2 + Math.floor(rng() * 3);
-
-  for (let i = 0; i < n; i++){
-    const seg = 1 + Math.floor(rng() * (xs.length - 1));
-    const x0 = xs[seg - 1], x1 = xs[seg];
-    const t = 0.18 + rng() * 0.64;                  // keep clear of the poles
-    const bx = x0 + (x1 - x0) * t;
-    const by = top + 2 * t * (1 - t) * (x1 - x0) * SAG;
-    const r = u * 2.2;
-    const face = rng() < 0.5 ? 1 : -1;              // facing left or right
-    const px = (v) => (bx + face * v * r).toFixed(1);
-    const py = (v) => (by - v * r).toFixed(1);
-
-    const b = mk("path", {
-      d: `M${px(-1.6)},${py(0.05)}` +                       // tail tip
-         ` L${px(-0.5)},${py(0.45)}` +                      // tail root
-         ` Q${px(-0.15)},${py(1.05)} ${px(0.45)},${py(0.9)}` +   // back up to the nape
-         ` Q${px(0.8)},${py(0.85)} ${px(0.7)},${py(0.5)}` +      // head
-         ` L${px(1.15)},${py(0.42)}` +                      // beak
-         ` L${px(0.62)},${py(0.3)}` +
-         ` Q${px(0.2)},${py(0)} ${px(-0.5)},${py(0.1)} Z`,  // breast down to the feet
-      fill: C.front });
-    b.setAttribute("class", "bird");
-    g.appendChild(b);
-    birds.push(b);
-  }
 }
 
 export function town(){
@@ -281,7 +242,7 @@ export function town(){
   if (!width || !H) return;
 
   const u = H / 100, base = H;
-  wins = []; birds = [];
+  wins = [];
   const rng = seeded(citySeed);
 
   const svg = mk("svg", { viewBox: `0 0 ${width} ${H}`, width: "100%", height: "100%" });
@@ -326,7 +287,7 @@ export function town(){
     tv.dataset.lit = "0.55";
   }
 
-  powerLine(svg, width, base, u, rng);
+  powerLine(svg, width, base, u);
 
   // Low-rise, closest of all: a bigger unit so it reads as near, kept short so
   // only roofs and upper storeys show, and overlapping heavily -- both each
