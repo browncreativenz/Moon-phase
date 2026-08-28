@@ -3,9 +3,13 @@
  * knows nothing about the moon beyond where on screen it sits.
  */
 
-const SVGNS = "http://www.w3.org/2000/svg";
+import { seeded, mk, SHAPES, roofClutter, windowGrid, compose, maybeCrane } from "./city.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
+
+/* The city is generated from a fixed seed: the same skyline every night,
+   rather than a new one on every resize. */
+const CITY_SEED = 0x5EEDC17;
 
 const still = !!(window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -13,17 +17,13 @@ const still = !!(window.matchMedia &&
 /* Resolve the palette once; SVG presentation attributes need literal colours. */
 const CSS = getComputedStyle(document.documentElement);
 const C = {
-  back:  CSS.getPropertyValue("--town-back").trim()  || "#0a0e1a",
-  front: CSS.getPropertyValue("--town-front").trim() || "#04060d",
+  far:   CSS.getPropertyValue("--town-far").trim()   || "#0d1526",
+  back:  CSS.getPropertyValue("--town-back").trim()  || "#080b16",
+  front: CSS.getPropertyValue("--town-front").trim() || "#020408",
   wire:  CSS.getPropertyValue("--wire").trim()       || "#161c2b",
-  win:   CSS.getPropertyValue("--win").trim()        || "#e0a355"
+  win:   CSS.getPropertyValue("--win").trim()        || "#e0a355",
+  tv:    CSS.getPropertyValue("--win-tv").trim()     || "#7ea6d8"
 };
-
-function mk(tag, attrs){
-  const n = document.createElementNS(SVGNS, tag);
-  for (const k in attrs) n.setAttribute(k, attrs[k]);
-  return n;
-}
 
 /* ===================== stars ============================================ */
 
@@ -80,144 +80,86 @@ export function stars(){
 
 /* ===================== town ============================================= */
 
-/* Heights and widths are in units of 1/100 of the band height, so buildings
-   keep their proportions at every screen size. Only the gaps between them
-   stretch, and the gaps widen toward the right so the mass sits left of centre. */
-const SPEC = [
-  { w: 26, h: 34, t: "flat",  c: 3, r: 2 },
-  { w: 18, h: 47, t: "pitch", c: 2, r: 3 },
-  { w: 34, h: 27, t: "flat",  c: 4, r: 2 },
-  { w: 11, h: 74, t: "pine" },
-  { w: 22, h: 41, t: "pitch", c: 3, r: 2 },
-  { w: 16, h: 86, t: "spire", c: 1, r: 4 },
-  { w: 14, h: 30, t: "flat",  c: 2, r: 2 },
-  { w: 30, h: 53, t: "flat",  c: 4, r: 3 },
-  { w: 20, h: 36, t: "pitch", c: 2, r: 2 },
-  { w: 19, h: 60, t: "tower" },
-  { w: 28, h: 31, t: "flat",  c: 3, r: 2 },
-  { w: 9,  h: 66, t: "pine" },
-  { w: 24, h: 44, t: "pitch", c: 3, r: 3 },
-  { w: 36, h: 25, t: "flat",  c: 5, r: 1 }
-];
-
 let wins = [];
+let birds = [];
 
-function pinePath(cx, base, w, h){
-  const tiers = 7, pts = [];
-  for (let i = 0; i <= tiers; i++){
-    const t = i / tiers;
-    const y = base - h + h * 0.92 * t;
-    const hw = (w / 2) * Math.pow(t, 0.82);
-    pts.push([cx + hw, y]);
-    if (i < tiers) pts.push([cx + hw * 0.52, y + (h * 0.92 / tiers) * 0.45]);
-  }
-  const right = pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`);
-  const left = pts.slice().reverse().map((p) => `${(2 * cx - p[0]).toFixed(1)},${p[1].toFixed(1)}`);
-  return `M${cx.toFixed(1)},${(base - h).toFixed(1)} L${right.join(" L")}` +
-         ` L${(cx + w * 0.06).toFixed(1)},${base}` +
-         ` L${(cx - w * 0.06).toFixed(1)},${base}` +
-         ` L${left.join(" L")} Z`;
-}
+/* Draw one depth layer. Nearer layers get windows and roof clutter; the far
+   layer is a bare ridge, which is what distance actually looks like. */
+function layer(g, rng, width, base, u, cfg, fill, detail){
+  const placements = compose(rng, width, u, cfg);
+  if (detail === "far") maybeCrane(rng, width, u, placements);
 
-function building(g, spec, x, base, u, fill, withWindows){
-  const w = spec.w * u, h = spec.h * u;
+  for (const b of placements){
+    const shape = SHAPES[b.type];
+    if (!shape) continue;
+    const top = shape(g, b.x, b.w, b.h, base, u, fill, rng);
+    if (top === null || top === undefined) continue;      // trees and masts have no facade
 
-  if (spec.t === "pine"){
-    g.appendChild(mk("path", { d: pinePath(x + w / 2, base, w, h), fill }));
-    return w;
-  }
+    if (detail !== "far" && b.type === "flat") roofClutter(g, b.x, b.w, top, u, fill, rng);
+    if (detail !== "near") continue;
 
-  if (spec.t === "tower"){
-    const legW = Math.max(1, u * 1.1), tankH = h * 0.34, tankY = base - h;
-    g.appendChild(mk("path", { d: `M${x + w * 0.18},${base} L${x + w * 0.38},${tankY + tankH}` +
-      ` L${x + w * 0.44},${tankY + tankH} L${x + w * 0.26},${base} Z`, fill }));
-    g.appendChild(mk("path", { d: `M${x + w * 0.82},${base} L${x + w * 0.62},${tankY + tankH}` +
-      ` L${x + w * 0.56},${tankY + tankH} L${x + w * 0.74},${base} Z`, fill }));
-    g.appendChild(mk("rect", { x: x + w * 0.3, y: tankY + tankH * 0.55, width: w * 0.4, height: h * 0.5, fill }));
-    g.appendChild(mk("rect", { x: x + w * 0.08, y: tankY + tankH * 0.28, width: w * 0.84,
-                               height: tankH * 0.8, rx: legW, fill }));
-    g.appendChild(mk("path", { d: `M${x + w * 0.06},${tankY + tankH * 0.3} L${x + w / 2},${tankY}` +
-      ` L${x + w * 0.94},${tankY + tankH * 0.3} Z`, fill }));
-    return w;
-  }
-
-  let bodyTop = base - h;
-
-  if (spec.t === "pitch"){
-    const roof = h * 0.26;
-    bodyTop = base - h + roof;
-    g.appendChild(mk("path", { d: `M${x - u * 1.2},${bodyTop} L${x + w / 2},${base - h}` +
-      ` L${x + w + u * 1.2},${bodyTop} Z`, fill }));
-  }
-
-  if (spec.t === "spire"){
-    const sp = h * 0.42;
-    bodyTop = base - h + sp;
-    g.appendChild(mk("path", { d: `M${x - u * 0.8},${bodyTop} L${x + w / 2},${base - h + u * 3}` +
-      ` L${x + w + u * 0.8},${bodyTop} Z`, fill }));
-    // finial: must run down past the apex (base-h+u*3) or it floats free
-    g.appendChild(mk("rect", { x: x + w / 2 - Math.max(0.6, u * 0.22), y: base - h - u * 3.5,
-                               width: Math.max(1.1, u * 0.44), height: u * 8, fill }));
-  }
-
-  g.appendChild(mk("rect", { x, y: bodyTop, width: w, height: base - bodyTop, fill }));
-
-  if (withWindows && spec.c){
-    const cols = spec.c, rows = spec.r;
-    const ww = Math.max(2, u * 2.1), wh = Math.max(2.5, u * 2.8);
-    const availH = base - bodyTop;
-    const padX = (w - cols * ww) / (cols + 1);
-    const padY = (availH - rows * wh) / (rows + 1);
-
-    if (padX > 0.5 && padY > 0.5){
-      for (let r = 0; r < rows; r++){
-        for (let c = 0; c < cols; c++){
-          const win = mk("rect", {
-            x: (x + padX + c * (ww + padX)).toFixed(1),
-            y: (bodyTop + padY + r * (wh + padY)).toFixed(1),
-            width: ww.toFixed(1), height: wh.toFixed(1),
-            fill: C.win, opacity: 0
-          });
-          win.setAttribute("class", "win");
-          win.dataset.lit = rnd(0.5, 0.95).toFixed(2);
-          win.dataset.on = "0";
-          g.appendChild(win);
-          wins.push(win);
-        }
-      }
+    for (const win of windowGrid(b.w, top, base, u, rng)){
+      const el = mk("rect", {
+        x: (b.x + win.x).toFixed(1), y: win.y.toFixed(1),
+        width: win.w.toFixed(1), height: win.h.toFixed(1),
+        fill: C.win, opacity: 0
+      });
+      el.setAttribute("class", "win");
+      el.dataset.lit = Math.min(0.95, rnd(0.45, 0.9) * win.warm).toFixed(2);
+      el.dataset.on = "0";
+      g.appendChild(el);
+      wins.push(el);
     }
   }
-  return w;
 }
 
-function row(g, width, base, u, startIdx, gapBase, fill, scale, withWindows){
-  let x = -u * 8, i = startIdx, guard = 0;
-  while (x < width + u * 10 && guard++ < 200){
-    const spec = SPEC[i % SPEC.length];
-    const scaled = { w: spec.w, h: spec.h * scale, t: spec.t, c: spec.c, r: spec.r };
-    const adv = building(g, scaled, x, base, u, fill, withWindows);
-    const spread = 1 + 1.7 * Math.max(0, Math.min(1, x / width));   // thins out to the right
-    x += adv + u * gapBase * spread;
-    i++;
-  }
-}
-
-function powerLine(g, width, base, u){
+/* Two wires with a real catenary sag, and a few birds. */
+function powerLine(g, width, base, u, rng){
   const poleH = u * 46, poleW = Math.max(1.2, u * 0.9);
   const xs = [-width * 0.05, width * 0.27, width * 0.79, width * 1.05];
   const top = base - poleH;
+  const sw = Math.max(1, u * 0.42);
 
-  let d = `M${xs[0]},${top}`;
-  for (let i = 1; i < xs.length; i++){
-    const mid = (xs[i - 1] + xs[i]) / 2;
-    d += ` Q${mid},${top + (xs[i] - xs[i - 1]) * 0.10} ${xs[i]},${top}`;
-  }
-  g.appendChild(mk("path", { d, fill: "none", stroke: C.wire, "stroke-width": Math.max(1, u * 0.42) }));
+  const span = (y, sag) => {
+    let d = `M${xs[0].toFixed(1)},${y.toFixed(1)}`;
+    for (let i = 1; i < xs.length; i++){
+      const mid = (xs[i - 1] + xs[i]) / 2;
+      d += ` Q${mid.toFixed(1)},${(y + (xs[i] - xs[i - 1]) * sag).toFixed(1)} ${xs[i].toFixed(1)},${y.toFixed(1)}`;
+    }
+    return d;
+  };
+
+  g.appendChild(mk("path", { d: span(top, 0.16), fill: "none", stroke: C.wire, "stroke-width": sw }));
+  g.appendChild(mk("path", { d: span(top + u * 3.2, 0.19), fill: "none", stroke: C.wire,
+                             "stroke-width": sw * 0.8, opacity: 0.7 }));
 
   for (let j = 1; j < xs.length - 1; j++){
-    g.appendChild(mk("rect", { x: xs[j] - poleW / 2, y: top, width: poleW, height: poleH, fill: C.front }));
-    g.appendChild(mk("rect", { x: xs[j] - u * 3, y: top + u * 2.5, width: u * 6,
-                               height: Math.max(1, u * 0.7), fill: C.front }));
+    g.appendChild(mk("rect", { x: (xs[j] - poleW / 2).toFixed(1), y: top.toFixed(1),
+                               width: poleW.toFixed(1), height: poleH.toFixed(1), fill: C.front }));
+    g.appendChild(mk("rect", { x: (xs[j] - u * 3).toFixed(1), y: (top + u * 2.5).toFixed(1),
+                               width: (u * 6).toFixed(1), height: Math.max(1, u * 0.7).toFixed(1),
+                               fill: C.front }));
+  }
+
+  // birds: a body, a head and a tail nick, sitting on the upper wire
+  const n = 2 + Math.floor(rng() * 3);
+  for (let i = 0; i < n; i++){
+    const t = 0.12 + rng() * 0.76;
+    const bx = xs[0] + (xs[xs.length - 1] - xs[0]) * t;
+    const seg = Math.min(xs.length - 2, Math.floor(t * (xs.length - 1)));
+    const local = (bx - xs[seg]) / (xs[seg + 1] - xs[seg]);
+    const sag = 4 * local * (1 - local) * (xs[seg + 1] - xs[seg]) * 0.16;
+    const by = top + sag;
+    const r = u * 2.1;
+    const b = mk("path", {
+      d: `M${(bx - r).toFixed(1)},${by.toFixed(1)}` +
+         ` Q${bx.toFixed(1)},${(by - r * 1.5).toFixed(1)} ${(bx + r * 0.7).toFixed(1)},${(by - r * 0.2).toFixed(1)}` +
+         ` L${(bx + r * 1.5).toFixed(1)},${(by - r * 0.9).toFixed(1)}` +
+         ` L${(bx + r * 0.6).toFixed(1)},${by.toFixed(1)} Z`,
+      fill: C.front });
+    b.setAttribute("class", "bird");
+    g.appendChild(b);
+    birds.push(b);
   }
 }
 
@@ -227,19 +169,49 @@ export function town(){
   if (!width || !H) return;
 
   const u = H / 100, base = H;
-  wins = [];
+  wins = []; birds = [];
+  const rng = seeded(CITY_SEED);
 
   const svg = mk("svg", { viewBox: `0 0 ${width} ${H}`, width: "100%", height: "100%" });
 
+  // Three layers, each lighter and bluer than the one in front of it. Distance
+  // washes contrast out; it does not just make things smaller.
+  const far = mk("g", { opacity: 0.85 });
+  svg.appendChild(far);
+  layer(far, rng, width, base, u, { gapBase: 11, scale: 0.42, heroAt: 0.72,
+    allowHero: false, minH: 22, maxH: 62, trees: ["broadleaf"] }, C.far, "far");
+
   const back = mk("g", {});
   svg.appendChild(back);
-  row(back, width, base, u, 7, 9, C.back, 0.62, false);
+  layer(back, rng, width, base, u, { gapBase: 8, scale: 0.66, heroAt: 0.66,
+    allowHero: false, minH: 25, maxH: 74, trees: ["broadleaf", "conifer"] }, C.back, "mid");
+
+  // A low haze band, behind the near layer so it pushes the distance back
+  // without washing the foreground out.
+  const defs = mk("defs", {});
+  const grad = mk("linearGradient", { id: "hazeGrad", x1: "0", y1: "0", x2: "0", y2: "1" });
+  grad.appendChild(mk("stop", { offset: "0%",   "stop-color": C.far, "stop-opacity": "0" }));
+  grad.appendChild(mk("stop", { offset: "100%", "stop-color": C.far, "stop-opacity": "0.42" }));
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+  svg.appendChild(mk("rect", { x: 0, y: (H * 0.45).toFixed(1), width,
+                               height: (H * 0.55).toFixed(1), fill: "url(#hazeGrad)" }));
 
   const front = mk("g", {});
   svg.appendChild(front);
-  row(front, width, base, u, 0, 5, C.front, 1, true);
+  layer(front, rng, width, base, u, { gapBase: 5, scale: 1, heroAt: 0.34,
+    allowHero: true, minH: 25, maxH: 88, trees: ["conifer"] }, C.front, "near");
 
-  powerLine(svg, width, base, u);
+  // One window has a television in it. Picked from the seeded stream, so it is
+  // the same window every night.
+  if (wins.length){
+    const tv = wins[(rng() * wins.length) | 0];
+    tv.setAttribute("fill", C.tv);
+    tv.dataset.tv = "1";
+    tv.dataset.lit = "0.55";
+  }
+
+  powerLine(svg, width, base, u, rng);
 
   host.textContent = "";
   host.appendChild(svg);

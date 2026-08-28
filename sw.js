@@ -17,6 +17,7 @@ const ASSETS = [
   "./js/phase.js",
   "./js/moon-svg.js",
   "./js/scene.js",
+  "./js/city.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",

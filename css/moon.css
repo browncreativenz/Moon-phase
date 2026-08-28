@@ -8,10 +8,14 @@
   --bone-dim:   #ddd3c0;
   --muted:      #79839c;
   --hair:       rgba(121,131,156,.22);
-  --town-back:  #080b16;
+  /* three depth steps: distance washes contrast out and cools the hue,
+     it does not only make things smaller */
+  --town-far:   #10192c;
+  --town-back:  #080e1c;
   --town-front: #020408;
   --wire:       #161c2b;
   --win:        #e0a355;
+  --win-tv:     #7ea6d8;      /* one window with a television in it */
 
   --town-h: clamp(110px, 20vh, 190px);
   --moon-y: 0px;              /* reserved: real altitude above the roofline */
