@@ -7,9 +7,18 @@ import { seeded, mk, SHAPES, roofClutter, windowGrid, compose, maybeCrane } from
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
-/* The city is generated from a fixed seed: the same skyline every night,
-   rather than a new one on every resize. */
-const CITY_SEED = 0x5EEDC17;
+/* A fresh city each time the app is opened. The seed is held for the life of
+   the page rather than drawn per call, so resizing or turning the phone
+   re-lays the same city instead of replacing it mid-glance. */
+let citySeed = newSeed();
+
+function newSeed(){
+  return ((Date.now() ^ (Math.random() * 0x100000000)) >>> 0) || 1;
+}
+
+export function reseedCity(){
+  citySeed = newSeed();
+}
 
 /* Tempo.
  *
@@ -193,7 +202,7 @@ export function town(){
 
   const u = H / 100, base = H;
   wins = []; birds = [];
-  const rng = seeded(CITY_SEED);
+  const rng = seeded(citySeed);
 
   const svg = mk("svg", { viewBox: `0 0 ${width} ${H}`, width: "100%", height: "100%" });
 

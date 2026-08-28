@@ -1,8 +1,9 @@
 /* The skyline.
  *
  * Buildings are composed from a seeded sequence rather than a fixed cycle, so
- * the profile never visibly repeats across a wide screen. The seed is fixed:
- * it is the same city every night, which matters more here than variety.
+ * the profile never visibly repeats across a wide screen. The seed changes
+ * each time the app is opened: only a handful of buildings fit on a phone, so
+ * a fixed city would only ever show you the same corner of the vocabulary.
  *
  * All sizes are in units of 1/100 of the band height, so proportions hold at
  * every screen size and only the gaps stretch.
@@ -356,8 +357,18 @@ export function compose(rng, width, u, cfg){
   const { gapBase, scale, heroAt, allowHero, minH, maxH, trees = [] } = cfg;
   const out = [];
   let x = -u * 10;
-  let sinceAccent = 2, sinceTree = 2, heroDone = !allowHero;
+  let sinceAccent = 2, sinceTree = 2, heroDone = !allowHero, lastType = null;
   let guard = 0;
+
+  /* Draw without replacement until the bag is empty, then refill. On a phone
+     only five or six buildings fit, so leaving which accents appear purely to
+     chance means most of them never get seen. */
+  const bags = new Map();
+  const draw = (list) => {
+    let bag = bags.get(list);
+    if (!bag || !bag.length) { bag = list.slice(); bags.set(list, bag); }
+    return bag.splice((rng() * bag.length) | 0, 1)[0];
+  };
 
   while (x < width + u * 12 && guard++ < 260){
     const t = Math.max(0, Math.min(1, x / width));
@@ -371,8 +382,8 @@ export function compose(rng, width, u, cfg){
       w = (type === "deco" ? 30 : 18) + rng() * 8;
       h = maxH * (0.94 + rng() * 0.06);
       heroDone = true;
-    } else if (trees.length && sinceTree >= 3 && rng() < 0.10){
-      type = trees[(rng() * trees.length) | 0];
+    } else if (trees.length && sinceTree >= 2 && rng() < 0.14){
+      type = draw(trees);
       w = type === "conifer" ? 11 + rng() * 6 : 14 + rng() * 8;
       // conifers stand clear of the roofline so they read against sky; the
       // rounded ones stay low, as a treeline rather than floating balloons
@@ -380,16 +391,22 @@ export function compose(rng, width, u, cfg){
         ? (minH + (maxH - minH) * 0.62) * env * (0.85 + rng() * 0.35)
         : (minH + (maxH - minH) * 0.16) * env * (0.8 + rng() * 0.4);
       sinceTree = -1;
-    } else if (sinceAccent >= 2 && rng() < 0.22){
-      type = ACCENTS[(rng() * ACCENTS.length) | 0];
+    } else if (sinceAccent >= 1 && rng() < 0.32){
+      type = draw(ACCENTS);
       w = 15 + rng() * 12;
       h = (minH + (maxH - minH) * (type === "stack" ? 0.85 : 0.6)) * env * (0.85 + rng() * 0.3);
       sinceAccent = -1;
     } else {
+      // Flat blocks should still dominate -- that is what a city is made of --
+      // but with four of them on a phone screen a run of identical kinds is
+      // most of what you see, so one retry breaks the run without making the
+      // plain ones rare.
       type = FILLERS[(rng() * FILLERS.length) | 0];
+      if (type === lastType) type = FILLERS[(rng() * FILLERS.length) | 0];
       w = 18 + rng() * 22;
       h = (minH + (maxH - minH) * rng() * 0.9) * env;
     }
+    lastType = type;
     sinceAccent++; sinceTree++;
 
     h = Math.max(minH * 0.5, Math.min(maxH, h)) * scale;

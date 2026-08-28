@@ -4,7 +4,7 @@
 
 import { describe } from "./phase.js";
 import { drawMoon, initMoon } from "./moon-svg.js";
-import { layout, seedLights, startLights, setMoonlight, startMeteors } from "./scene.js";
+import { layout, seedLights, startLights, setMoonlight, startMeteors, reseedCity } from "./scene.js";
 import { skyPosition } from "./astro.js";
 
 const el = (id) => document.getElementById(id);
@@ -194,8 +194,23 @@ window.addEventListener("resize", () => {
 setInterval(render, 60000);
 setInterval(seedLights, 30 * 60000);        // re-seat the lit ratio each half hour
 
+/* A phone keeps this page alive for days, so coming back to it is what
+ * "opening the app" actually means. Coming back the next evening gets a new
+ * city; glancing away for a moment does not, because having it change under
+ * you mid-look would just read as a glitch.
+ */
+const RESEED_AFTER = 30 * 60000;
+let hiddenAt = 0;
+
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden){ render(); seedLights(); }
+  if (document.hidden){ hiddenAt = Date.now(); return; }
+
+  if (hiddenAt && Date.now() - hiddenAt > RESEED_AFTER){
+    reseedCity();
+    layout();
+  }
+  render();
+  seedLights();
 });
 
 /* Offline support. Resolved against this module's own URL so it works from
