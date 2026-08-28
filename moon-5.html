@@ -149,13 +149,13 @@
     <svg viewBox="-128 -128 256 256" role="img" aria-labelledby="a11y">
       <title id="a11y">Moon phase</title>
       <defs>
-        <radialGradient id="glow">
+        <radialGradient id="moonGlow">
           <stop offset="42%" stop-color="rgba(242,236,224,.20)"/>
           <stop offset="100%" stop-color="rgba(242,236,224,0)"/>
         </radialGradient>
         <clipPath id="litClip"><path id="clipPath" d=""/></clipPath>
       </defs>
-      <circle id="halo" cx="0" cy="0" r="126" fill="url(#glow)"/>
+      <circle id="halo" cx="0" cy="0" r="126" fill="url(#moonGlow)"/>
       <circle cx="0" cy="0" r="100" fill="var(--ink-lift)"/>
       <circle cx="0" cy="0" r="100" fill="none" stroke="rgba(121,131,156,.35)" stroke-width="1"/>
       <g id="disc">
@@ -182,7 +182,7 @@
 <script>
 (function(){
   "use strict";
-  var D = Math.PI/180, SYNODIC = 29.530588853, SVGNS = "http://www.w3.org/2000/svg";
+  var D = Math.PI/180, SVGNS = "http://www.w3.org/2000/svg";
   var south = null;
   var el = function(id){ return document.getElementById(id); };
   var still = !!(window.matchMedia &&
@@ -202,32 +202,142 @@
 
   /* ===================== moon =========================================== */
 
-  function elongation(ms){
-    var d = (ms - Date.UTC(2000,0,1,12,0,0)) / 86400000;
-    var M  = norm(357.5291 + 0.98560028*d);
-    var L  = norm(280.4593 + 0.98564736*d);
-    var sun = L + 1.9148*Math.sin(M*D) + 0.0200*Math.sin(2*M*D) + 0.0003*Math.sin(3*M*D);
+  /* Positions follow Meeus, "Astronomical Algorithms" (2nd ed): chapter 25 for
+     the Sun, chapter 47 -- the abridged ELP-2000/82 -- for the Moon. That is
+     good to about 10" in lunar longitude, which lands new and full moon within
+     half a minute of the published times. The previous nine-term series drifted
+     up to twelve minutes, which the clock times below would have hidden. */
 
-    var Lm = 218.3165 + 13.17639648*d;
-    var Mm = 134.9634 + 13.06499295*d;
-    var Dm = 297.8502 + 12.19074912*d;
-    var moon = Lm
-      + 6.2886*Math.sin(Mm*D)
-      + 1.2740*Math.sin((2*Dm - Mm)*D)
-      + 0.6583*Math.sin(2*Dm*D)
-      + 0.2136*Math.sin(2*Mm*D)
-      - 0.1851*Math.sin(M*D)
-      - 0.1143*Math.sin(2*(93.2721 + 13.22935024*d)*D)
-      + 0.0588*Math.sin((2*Dm - 2*Mm)*D)
-      + 0.0572*Math.sin((2*Dm - M - Mm)*D)
-      + 0.0533*Math.sin((2*Dm + Mm)*D);
+  function sin(x){ return Math.sin(x*D); }
+  function cos(x){ return Math.cos(x*D); }
 
-    return norm(moon - sun);
+  // Table 47.A -- D, M, M', F, coefficient of sum(l) in 1e-6 deg, of sum(r) in metres.
+  var TL = [
+    0,0,1,0,6288774,-20905355,   2,0,-1,0,1274027,-3699111,  2,0,0,0,658314,-2955968,
+    0,0,2,0,213618,-569925,      0,1,0,0,-185116,48888,      0,0,0,2,-114332,-3149,
+    2,0,-2,0,58793,246158,       2,-1,-1,0,57066,-152138,    2,0,1,0,53322,-170733,
+    2,-1,0,0,45758,-204586,      0,1,-1,0,-40923,-129620,    1,0,0,0,-34720,108743,
+    0,1,1,0,-30383,104755,       2,0,0,-2,15327,10321,       0,0,1,2,-12528,0,
+    0,0,1,-2,10980,79661,        4,0,-1,0,10675,-34782,      0,0,3,0,10034,-23210,
+    4,0,-2,0,8548,-21636,        2,1,-1,0,-7888,24208,       2,1,0,0,-6766,30824,
+    1,0,-1,0,-5163,-8379,        1,1,0,0,4987,-16675,        2,-1,1,0,4036,-12831,
+    2,0,2,0,3994,-10445,         4,0,0,0,3861,-11650,        2,0,-3,0,3665,14403,
+    0,1,-2,0,-2689,-7003,        2,0,-1,2,-2602,0,           2,-1,-2,0,2390,10056,
+    1,0,1,0,-2348,6322,          2,-2,0,0,2236,-9884,        0,1,2,0,-2120,5751,
+    0,2,0,0,-2069,0,             2,-2,-1,0,2048,-4950,       2,0,1,-2,-1773,4130,
+    2,0,0,2,-1595,0,             4,-1,-1,0,1215,-3958,       0,0,2,2,-1110,0,
+    3,0,-1,0,-892,3258,          2,1,1,0,-810,2616,          4,-1,-2,0,759,-1897,
+    0,2,-1,0,-713,-2117,         2,2,-1,0,-700,2354,         2,1,-2,0,691,0,
+    2,-1,0,-2,596,0,             4,0,1,0,549,-1423,          0,0,4,0,537,-1117,
+    4,-1,0,0,520,-1571,          1,0,-2,0,-487,-1739,        2,1,0,-2,-399,0,
+    0,0,2,-2,-381,-4421,         1,1,1,0,351,0,              3,0,-2,0,-340,0,
+    4,0,-3,0,330,0,              2,-1,2,0,327,0,             0,2,1,0,-323,1165,
+    1,1,-1,0,299,0,              2,0,3,0,294,0,              2,0,-1,-2,0,8752
+  ];
+
+  // Table 47.B -- D, M, M', F, coefficient of sum(b) in 1e-6 deg.
+  var TB = [
+    0,0,0,1,5128122,  0,0,1,1,280602,   0,0,1,-1,277693,  2,0,0,-1,173237,
+    2,0,-1,1,55413,   2,0,-1,-1,46271,  2,0,0,1,32573,    0,0,2,1,17198,
+    2,0,1,-1,9266,    0,0,2,-1,8822,    2,-1,0,-1,8216,   2,0,-2,-1,4324,
+    2,0,1,1,4200,     2,1,0,-1,-3359,   2,-1,-1,1,2463,   2,-1,0,1,2211,
+    2,-1,-1,-1,2065,  0,1,-1,-1,-1870,  4,0,-1,-1,1828,   0,1,0,1,-1794,
+    0,0,0,3,-1749,    0,1,-1,1,-1565,   1,0,0,1,-1491,    0,1,1,1,-1475,
+    0,1,1,-1,-1410,   0,1,0,-1,-1344,   1,0,0,-1,-1335,   0,0,3,1,1107,
+    4,0,0,-1,1021,    4,0,-1,1,833,     0,0,1,-3,777,     4,0,-2,1,671,
+    2,0,0,-3,607,     2,0,2,-1,596,     2,-1,1,-1,491,    2,0,-2,1,-451,
+    0,0,3,-1,439,     2,0,2,1,422,      2,0,-3,-1,421,    2,1,-1,1,-366,
+    2,1,0,1,-351,     4,0,0,1,331,      2,-1,1,1,315,     2,-2,0,-1,302,
+    0,0,1,3,-283,     2,1,1,-1,-229,    1,1,0,-1,223,     1,1,0,1,223,
+    0,1,-2,-1,-220,   2,1,-1,-1,-220,   1,0,1,1,-185,     2,-1,-2,-1,181,
+    0,1,2,1,-177,     4,0,-2,-1,176,    4,-1,-1,-1,166,   1,0,1,-1,-164,
+    4,0,1,-1,132,     1,0,-1,-1,-119,   4,-1,0,-1,115,    2,-2,0,1,107
+  ];
+
+  // Delta T, the gap between terrestrial and universal time, in seconds
+  // (Espenak & Meeus). The tables above are indexed by TT, the browser clock
+  // reports UTC, and seventy-odd seconds is worth about 0.01 deg of moon.
+  function deltaT(y){
+    var t, u;
+    if (y >= 2005 && y < 2050){ t = y - 2000; return 62.92 + 0.32217*t + 0.005589*t*t; }
+    if (y >= 1986 && y < 2005){
+      t = y - 2000;
+      return 63.86 + 0.3345*t - 0.060374*t*t + 0.0017275*t*t*t +
+             0.000651814*t*t*t*t + 0.00002373599*t*t*t*t*t;
+    }
+    if (y >= 2050 && y < 2150){ u = (y - 1820)/100; return -20 + 32*u*u - 0.5628*(2150 - y); }
+    u = (y - 1820)/100; return -20 + 32*u*u;
   }
 
+  // Julian centuries of TT since J2000.0, from a UTC timestamp in milliseconds.
+  function centuries(ms){
+    var jd = ms/86400000 + 2440587.5;
+    var year = 2000 + (jd - 2451545.0)/365.25;
+    return (jd + deltaT(year)/86400 - 2451545.0)/36525;
+  }
+
+  function sunPos(T){
+    var L0 = 280.46646 + 36000.76983*T + 0.0003032*T*T;
+    var M  = 357.52911 + 35999.05029*T - 0.0001537*T*T;
+    var e  = 0.016708634 - 0.000042037*T - 0.0000001267*T*T;
+    var C  = (1.914602 - 0.004817*T - 0.000014*T*T)*sin(M)
+           + (0.019993 - 0.000101*T)*sin(2*M)
+           + 0.000289*sin(3*M);
+    var v  = M + C, Om = 125.04 - 1934.136*T;
+    return {
+      lon: norm(L0 + C - 0.00569 - 0.00478*sin(Om)),   // apparent longitude
+      R:   1.000001018*(1 - e*e)/(1 + e*cos(v))        // distance in AU
+    };
+  }
+
+  function moonPos(T){
+    var Lp = 218.3164477 + 481267.88123421*T - 0.0015786*T*T + T*T*T/538841 - T*T*T*T/65194000;
+    var Dm = 297.8501921 + 445267.1114034*T  - 0.0018819*T*T + T*T*T/545868 - T*T*T*T/113065000;
+    var M  = 357.5291092 + 35999.0502909*T   - 0.0001536*T*T + T*T*T/24490000;
+    var Mp = 134.9633964 + 477198.8675055*T  + 0.0087414*T*T + T*T*T/69699  - T*T*T*T/14712000;
+    var F  = 93.2720950  + 483202.0175233*T  - 0.0036539*T*T - T*T*T/3526000 + T*T*T*T/863310000;
+    var A1 = 119.75 + 131.849*T, A2 = 53.09 + 479264.290*T, A3 = 313.45 + 481266.484*T;
+    var E = 1 - 0.002516*T - 0.0000074*T*T;    // damps terms involving the Sun's anomaly
+    var sl = 0, sr = 0, sb = 0, i, a, f;
+
+    for (i = 0; i < TL.length; i += 6){
+      a = TL[i]*Dm + TL[i+1]*M + TL[i+2]*Mp + TL[i+3]*F;
+      f = Math.abs(TL[i+1]) === 1 ? E : (Math.abs(TL[i+1]) === 2 ? E*E : 1);
+      sl += TL[i+4]*f*sin(a);
+      sr += TL[i+5]*f*cos(a);
+    }
+    for (i = 0; i < TB.length; i += 5){
+      a = TB[i]*Dm + TB[i+1]*M + TB[i+2]*Mp + TB[i+3]*F;
+      f = Math.abs(TB[i+1]) === 1 ? E : (Math.abs(TB[i+1]) === 2 ? E*E : 1);
+      sb += TB[i+4]*f*sin(a);
+    }
+    sl += 3958*sin(A1) + 1962*sin(Lp - F) + 318*sin(A2);
+    sb += -2235*sin(Lp) + 382*sin(A3) + 175*sin(A1 - F) + 175*sin(A1 + F)
+        + 127*sin(Lp - Mp) - 115*sin(Lp + Mp);
+
+    return { lon: norm(Lp + sl/1e6), lat: sb/1e6, dist: 385000.56 + sr/1000 };
+  }
+
+  // Difference in apparent ecliptic longitude. This is the quantity the four
+  // named phases are defined on, so it drives the naming and the geometry.
+  function elongation(ms){
+    var T = centuries(ms);
+    return norm(moonPos(T).lon - sunPos(T).lon);
+  }
+
+  var AU = 149597870.7;
+
   function state(ms){
-    var psi = elongation(ms);
-    return { psi:psi, lit:(1 - Math.cos(psi*D))/2, age:psi/360*SYNODIC, waxing:psi < 180 };
+    var T = centuries(ms), s = sunPos(T), m = moonPos(T);
+    var psi = norm(m.lon - s.lon);
+    // The true separation, which the moon's ecliptic latitude tilts away from
+    // the longitude difference by up to five degrees.
+    var sep = Math.acos(cos(m.lat)*cos(m.lon - s.lon))/D;
+    // Illumination depends on the Sun-Moon-Earth angle, not on the separation
+    // seen from here; at 400 000 km the two differ by up to a sixth of a degree.
+    var Rk = s.R*AU;
+    var i = Math.atan2(Rk*sin(sep), m.dist - Rk*cos(sep))/D;
+    return { psi:psi, lit:(1 + cos(i))/2, dist:m.dist, waxing:psi < 180 };
   }
 
   function phaseName(psi){
@@ -242,27 +352,43 @@
     return "Waning crescent";
   }
 
-  function nextCrossing(fromMs, target){
+  // Walk hour by hour until the wrapped elongation crosses the target, then
+  // bisect. Stepping backwards (dir -1) finds the most recent crossing, which
+  // is how the moon's real age is measured. The 180 deg branch cut only ever
+  // jumps the wrong way, so it is never mistaken for a crossing.
+  function crossing(fromMs, target, dir){
     var f = function(t){
       var x = elongation(t) - target;
       while (x < -180) x += 360;
       while (x >  180) x -= 360;
       return x;
     };
-    var hour = 3600000, t0 = fromMs, prev = f(t0);
-    for (var i = 1; i <= 24*32; i++){
-      var t1 = fromMs + i*hour, cur = f(t1);
-      if (prev < 0 && cur >= 0){
-        var lo = t0, hi = t1;
-        for (var j = 0; j < 40; j++){
-          var mid = (lo + hi)/2;
-          if (f(mid) < 0) lo = mid; else hi = mid;
-        }
-        return (lo + hi)/2;
+    var step = dir*3600000, t0 = fromMs, prev = f(t0), i, t1, cur, lo, hi, mid, j;
+    for (i = 1; i <= 24*32; i++){
+      t1 = fromMs + i*step; cur = f(t1);
+      if (dir > 0 ? (prev < 0 && cur >= 0) : (prev >= 0 && cur < 0)){
+        lo = Math.min(t0,t1); hi = Math.max(t0,t1);
+        for (j = 0; j < 42; j++){ mid = (lo+hi)/2; if (f(mid) < 0) lo = mid; else hi = mid; }
+        return (lo+hi)/2;
       }
       t0 = t1; prev = cur;
     }
     return null;
+  }
+
+  // Root finding costs a few hundred series evaluations, so hold the answers
+  // until the event they describe has actually gone past.
+  var events = null;
+  function moonEvents(now, psi){
+    if (events && events.last !== null && events.next !== null &&
+        now >= events.last && now < events.next) return events;
+    var target = psi < 180 ? 180 : 0;
+    events = {
+      last: crossing(now, 0, -1),          // previous new moon
+      next: crossing(now, target, 1),
+      nextIsFull: target === 180
+    };
+    return events;
   }
 
   function litPath(k, waxing, R){
@@ -291,22 +417,33 @@
     return "in " + n + (n === 1 ? " day" : " days");
   }
 
+  // Round to a whole percent, but never let rounding claim a full or new moon
+  // that has not happened -- a 99.6% gibbous is not "100% lit".
+  function pct(k){
+    var v = k*100;
+    if (v >= 99.95) return 100;
+    if (v <= 0.05)  return 0;
+    return Math.max(1, Math.min(99, Math.round(v)));
+  }
+
   function render(){
-    var now = new Date(), s = state(now.getTime()), R = 100;
+    var now = new Date(), ms = now.getTime();
+    var s = state(ms), psi = s.psi, R = 100;
     var d = litPath(s.lit, s.waxing, R);
     el("lit").setAttribute("d", d);
     el("clipPath").setAttribute("d", d);
     el("disc").setAttribute("transform", south ? "rotate(180)" : "");
     el("halo").setAttribute("opacity", (0.15 + 0.85*s.lit).toFixed(3));
 
-    el("date").textContent  = fmtDate(now);
-    el("name").textContent  = phaseName(s.psi);
-    el("stats").textContent = Math.round(s.lit*100) + "% lit \u00B7 " + s.age.toFixed(1) + " days old";
+    var ev = moonEvents(ms, psi);
+    var age = ev.last !== null ? (ms - ev.last)/86400000 : psi/360*29.530588853;
 
-    var target = (s.psi < 180) ? 180 : 0;
-    var t = nextCrossing(now.getTime(), target);
-    el("next").textContent = t
-      ? (target === 180 ? "Full moon " : "New moon ") + inDays(t, now.getTime())
+    el("date").textContent  = fmtDate(now);
+    el("name").textContent  = phaseName(psi);
+    el("stats").textContent = pct(s.lit) + "% lit \u00B7 " + age.toFixed(1) + " days old";
+
+    el("next").textContent = ev.next !== null
+      ? (ev.nextIsFull ? "Full moon " : "New moon ") + inDays(ev.next, ms)
       : "";
 
     el("hemi").textContent = (south ? "Southern" : "Northern") + " hemisphere view";
@@ -317,33 +454,47 @@
   function stars(){
     var sky = el("sky");
     var vw = window.innerWidth, vh = window.innerHeight;
-    var W = vw*1.5, H = vh*1.5, ox = vw*0.25, oy = vh*0.25;
+    // Layout offsets, not the client rect: on first paint the intro fade is
+    // still translating the moon, and pivoting the sky about that transient
+    // position leaves the wheel a few pixels off centre.
+    var wrap = document.querySelector(".moon-wrap");
+    var cx = wrap.offsetLeft + wrap.offsetWidth/2;
+    var cy = wrap.offsetTop  + wrap.offsetHeight/2;
 
-    var box = document.querySelector(".moon-wrap").getBoundingClientRect();
-    var cx = box.left + box.width/2 + ox;
-    var cy = box.top  + box.height/2 + oy;
-    var clear = (box.width * 100/256) * 1.5;
+    // The field wheels about the moon, so sizing it off the viewport left bare
+    // corners swinging through view. Fit it to the farthest screen corner
+    // instead: the inscribed circle then covers the screen at any rotation.
+    var R = 0;
+    [[0,0],[vw,0],[0,vh],[vw,vh]].forEach(function(p){
+      R = Math.max(R, Math.hypot(p[0]-cx, p[1]-cy));
+    });
+    R = Math.ceil(R) + 2;
+    var S = 2*R;
 
-    sky.style.transformOrigin = cx + "px " + cy + "px";
+    sky.style.left = (cx - R) + "px";
+    sky.style.top  = (cy - R) + "px";
+    sky.style.width = sky.style.height = S + "px";
+    sky.style.transformOrigin = "50% 50%";
     sky.textContent = "";
 
-    var n = Math.round(Math.min(700, Math.max(220, (vw*vh)/1100)));
-    var frag = document.createDocumentFragment();
+    var clear = (wrap.offsetWidth * 100/256) * 1.5;
+    var n = Math.round(Math.min(1200, Math.max(300, S*S/2475)));
+    var frag = document.createDocumentFragment(), guard = 0;
 
     for (var i = 0; i < n; i++){
-      var x = Math.random()*W, y = Math.random()*H;
-      if (Math.hypot(x-cx, y-cy) < clear){ i--; continue; }
+      var x = Math.random()*S, y = Math.random()*S;
+      if (Math.hypot(x-R, y-R) < clear && guard++ < n*4){ i--; continue; }
       var big = Math.random();
       var size = big > 0.95 ? 2.6 : big > 0.74 ? 1.8 : 1.2;
-      var s = document.createElement("span");
-      s.className = big > 0.95 ? "star lg" : "star";
-      s.style.left = x.toFixed(1) + "px";
-      s.style.top  = y.toFixed(1) + "px";
-      s.style.width = s.style.height = size + "px";
-      s.style.setProperty("--o", (0.34 + Math.random()*0.62).toFixed(2));
-      s.style.setProperty("--dur", (3.5 + Math.random()*7).toFixed(1) + "s");
-      s.style.setProperty("--delay", (-Math.random()*10).toFixed(1) + "s");
-      frag.appendChild(s);
+      var st = document.createElement("span");
+      st.className = big > 0.95 ? "star lg" : "star";
+      st.style.left = x.toFixed(1) + "px";
+      st.style.top  = y.toFixed(1) + "px";
+      st.style.width = st.style.height = size + "px";
+      st.style.setProperty("--o", (0.34 + Math.random()*0.62).toFixed(2));
+      st.style.setProperty("--dur", (3.5 + Math.random()*7).toFixed(1) + "s");
+      st.style.setProperty("--delay", (-Math.random()*10).toFixed(1) + "s");
+      frag.appendChild(st);
     }
     sky.appendChild(frag);
   }
@@ -594,15 +745,28 @@
     g2.fillStyle = "#0f1320"; g2.fillRect(0,0,512,512);
     g2.beginPath(); g2.arc(256,256,168,0,Math.PI*2); g2.fillStyle = "#f2ece0"; g2.fill();
     g2.beginPath(); g2.arc(316,216,150,0,Math.PI*2); g2.fillStyle = "#0f1320"; g2.fill();
+    var icon = cv.toDataURL("image/png");
+    var here = location.href.split(/[?#]/)[0];
+    var dir  = here.replace(/[^\/]*$/, "");
     var mf = {
-      name:"Moon", short_name:"Moon", start_url:".", scope:".",
+      id: here,
+      name:"Moon", short_name:"Moon",
+      start_url: here, scope: dir,
       display:"standalone", orientation:"portrait",
       background_color:"#0f1320", theme_color:"#0f1320",
-      icons:[{src:cv.toDataURL("image/png"), sizes:"512x512", type:"image/png", purpose:"any maskable"}]
+      icons:[
+        {src:icon, sizes:"512x512", type:"image/png", purpose:"any"},
+        {src:icon, sizes:"512x512", type:"image/png", purpose:"maskable"}
+      ]
     };
     el("manifest").href = URL.createObjectURL(
       new Blob([JSON.stringify(mf)], {type:"application/manifest+json"})
     );
+    // iOS reads this rather than the manifest when adding to the home screen.
+    var touch = document.createElement("link");
+    touch.rel = "apple-touch-icon";
+    touch.href = icon;
+    document.head.appendChild(touch);
   } catch(e){}
 })();
 </script>
