@@ -148,9 +148,11 @@ function reveal(){
   requestAnimationFrame(step);
 }
 
-// layout() first: it builds the skyline, and render() needs the rim-light
-// group to exist before it can set the moonlight on it.
+// Render first so the text column is filled and can be measured; layout()
+// sizes the band from it and builds the skyline; then render again, because
+// the moonlight needs the rim-light group layout() creates.
 initMoon();
+render();
 layout();
 render();
 startLights();

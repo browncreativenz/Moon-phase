@@ -19,14 +19,11 @@
   --win:        #e0a355;
   --win-tv:     #7ea6d8;      /* one window with a television in it */
 
-  /* The content column is a near-constant ~446px tall whatever the screen, so
-     the band is sized from the space actually left over rather than from a
-     fraction of the viewport: 24px top padding + 16px bottom + the column +
-     breathing room comes to about 530px. Below that there is nothing spare and
-     it collapses to the 110px floor. u = H/100 drives width as well as height,
-     so a taller band scales the whole city up -- bigger buildings, more of
-     their detail, fewer of them across. */
-  --town-h: clamp(110px, calc(100vh - 530px), 320px);
+  /* Conservative default only. scene.js measures the text column and grows
+     this to whatever is genuinely left over -- the column's height moves with
+     the reader's font size, so any fixed reserve overlaps the skyline for
+     somebody. This value is what you get if the script never runs. */
+  --town-h: clamp(110px, 20vh, 190px);
   --moon-y: 0px;              /* reserved: real altitude above the roofline */
 
   /* the sky, blended toward twilight by the sun's real altitude */
@@ -36,10 +33,6 @@
   --serif: "Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
   --sans: ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
-@supports (height: 100svh){
-  :root{ --town-h: clamp(110px, calc(100svh - 530px), 320px) }
-}
-
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{

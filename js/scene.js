@@ -293,8 +293,41 @@ function flicker(){
   setTimeout(flicker, rnd(TEMPO.windowEvery[0], TEMPO.windowEvery[1]));
 }
 
+/* Give the skyline whatever vertical room the text column does not need.
+ *
+ * The column's height is not knowable in advance: it moves with the reader's
+ * font size, their browser's fallback face, and how the detail line wraps. A
+ * fixed reserve works on the screen it was measured on and overlaps the
+ * rooftops on everyone else's, so measure the real thing instead.
+ */
+/* Below this the city is a glitchy sliver rather than a skyline, so it gives up
+   its space entirely: on a small screen at large text the readings matter and
+   the scenery does not. town() already no-ops at zero height. */
+const BAND_MIN = 96, BAND_MAX = 340, BREATHING = 26;
+
+export function fitBand(){
+  const flow = [...document.body.children].filter((n) => {
+    if (getComputedStyle(n).position === "fixed") return false;
+    return n.getBoundingClientRect().height > 0;
+  });
+  if (!flow.length) return;
+
+  let top = Infinity, bottom = -Infinity;
+  for (const n of flow){
+    const r = n.getBoundingClientRect();
+    top = Math.min(top, r.top);
+    bottom = Math.max(bottom, r.bottom);
+  }
+
+  const padTop = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
+  const avail = window.innerHeight - padTop - (bottom - top) - BREATHING;
+  const h = avail < BAND_MIN ? 0 : Math.min(BAND_MAX, avail);
+  document.documentElement.style.setProperty("--town-h", `${Math.round(h)}px`);
+}
+
 /* Lay out everything that depends on viewport size. */
 export function layout(){
+  fitBand();
   stars();
   town();
 }
