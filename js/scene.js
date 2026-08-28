@@ -236,21 +236,38 @@ function powerLine(g, width, base, u, rng){
                                fill: C.front }));
   }
 
-  // birds: a body, a head and a tail nick, sitting on the upper wire
+  /* Birds, placed on the wire by evaluating the curve the wire is actually
+     drawn with rather than approximating it.
+     
+     Each span is a quadratic Bezier from (x0,top) to (x1,top) whose control
+     point sits at the midpoint, so x is linear in s and y is exactly
+     top + 2s(1-s)d. Two things were wrong before: the segment was chosen with
+     floor(t*3) while x was interpolated across the whole span, and the three
+     spans are not equal, so a bird could land outside its own segment, take a
+     negative sag and float in the sky. And the old sag was double the truth --
+     a quadratic Bezier dips half its control offset, not all of it. */
+  const SAG = 0.16;
   const n = 2 + Math.floor(rng() * 3);
+
   for (let i = 0; i < n; i++){
-    const t = 0.12 + rng() * 0.76;
-    const bx = xs[0] + (xs[xs.length - 1] - xs[0]) * t;
-    const seg = Math.min(xs.length - 2, Math.floor(t * (xs.length - 1)));
-    const local = (bx - xs[seg]) / (xs[seg + 1] - xs[seg]);
-    const sag = 4 * local * (1 - local) * (xs[seg + 1] - xs[seg]) * 0.16;
-    const by = top + sag;
-    const r = u * 2.1;
+    const seg = 1 + Math.floor(rng() * (xs.length - 1));
+    const x0 = xs[seg - 1], x1 = xs[seg];
+    const t = 0.18 + rng() * 0.64;                  // keep clear of the poles
+    const bx = x0 + (x1 - x0) * t;
+    const by = top + 2 * t * (1 - t) * (x1 - x0) * SAG;
+    const r = u * 2.2;
+    const face = rng() < 0.5 ? 1 : -1;              // facing left or right
+    const px = (v) => (bx + face * v * r).toFixed(1);
+    const py = (v) => (by - v * r).toFixed(1);
+
     const b = mk("path", {
-      d: `M${(bx - r).toFixed(1)},${by.toFixed(1)}` +
-         ` Q${bx.toFixed(1)},${(by - r * 1.5).toFixed(1)} ${(bx + r * 0.7).toFixed(1)},${(by - r * 0.2).toFixed(1)}` +
-         ` L${(bx + r * 1.5).toFixed(1)},${(by - r * 0.9).toFixed(1)}` +
-         ` L${(bx + r * 0.6).toFixed(1)},${by.toFixed(1)} Z`,
+      d: `M${px(-1.6)},${py(0.05)}` +                       // tail tip
+         ` L${px(-0.5)},${py(0.45)}` +                      // tail root
+         ` Q${px(-0.15)},${py(1.05)} ${px(0.45)},${py(0.9)}` +   // back up to the nape
+         ` Q${px(0.8)},${py(0.85)} ${px(0.7)},${py(0.5)}` +      // head
+         ` L${px(1.15)},${py(0.42)}` +                      // beak
+         ` L${px(0.62)},${py(0.3)}` +
+         ` Q${px(0.2)},${py(0)} ${px(-0.5)},${py(0.1)} Z`,  // breast down to the feet
       fill: C.front });
     b.setAttribute("class", "bird");
     g.appendChild(b);
