@@ -22,6 +22,7 @@
   <div class="date fade" id="date"></div>
 
   <div class="moon-wrap fade" style="animation-delay:.05s">
+   <div class="moon-pos">
     <svg viewBox="-128 -128 256 256" role="img" aria-labelledby="a11y">
       <title id="a11y">Moon phase</title>
       <defs>
@@ -29,23 +30,44 @@
           <stop offset="42%" stop-color="rgba(242,236,224,.20)"/>
           <stop offset="100%" stop-color="rgba(242,236,224,0)"/>
         </radialGradient>
+        <!-- limb darkening: the edge of a sphere is dimmer than its middle -->
+        <radialGradient id="limb">
+          <stop offset="0%"  stop-color="rgba(0,0,0,0)"/>
+          <stop offset="72%" stop-color="rgba(0,0,0,0)"/>
+          <stop offset="100%" stop-color="rgba(8,10,18,.42)"/>
+        </radialGradient>
+        <!-- softens the terminator; the disc clip below keeps the limb crisp -->
+        <filter id="soften" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.5"/>
+        </filter>
+        <clipPath id="discClip"><circle cx="0" cy="0" r="100"/></clipPath>
         <clipPath id="litClip"><path id="clipPath" d=""/></clipPath>
       </defs>
+
       <circle id="halo" cx="0" cy="0" r="126" fill="url(#moonGlow)"/>
       <circle cx="0" cy="0" r="100" fill="var(--ink-lift)"/>
+      <!-- earthshine: the unlit face is lit by the Earth, most visibly when
+           the crescent is thin -->
+      <circle id="earthshine" cx="0" cy="0" r="100" fill="var(--earthshine)" opacity="0"/>
       <circle cx="0" cy="0" r="100" fill="none" stroke="rgba(121,131,156,.35)" stroke-width="1"/>
+
       <g id="disc">
-        <path id="lit" d="" fill="var(--bone)"/>
-        <g clip-path="url(#litClip)" fill="#ddd2bd">
-          <ellipse cx="-30" cy="-38" rx="26" ry="20" opacity=".55"/>
-          <ellipse cx="14"  cy="-52" rx="17" ry="13" opacity=".42"/>
-          <ellipse cx="34"  cy="-8"  rx="22" ry="27" opacity=".48"/>
-          <ellipse cx="-46" cy="18"  rx="19" ry="15" opacity=".38"/>
-          <ellipse cx="-8"  cy="30"  rx="14" ry="11" opacity=".30"/>
-          <ellipse cx="52"  cy="46"  rx="11" ry="9"  opacity=".26"/>
+        <g clip-path="url(#discClip)" filter="url(#soften)">
+          <path id="lit" d="" fill="var(--bone)"/>
+          <g clip-path="url(#litClip)" fill="#ddd2bd">
+            <ellipse cx="-30" cy="-38" rx="26" ry="20" opacity=".55"/>
+            <ellipse cx="14"  cy="-52" rx="17" ry="13" opacity=".42"/>
+            <ellipse cx="34"  cy="-8"  rx="22" ry="27" opacity=".48"/>
+            <ellipse cx="-46" cy="18"  rx="19" ry="15" opacity=".38"/>
+            <ellipse cx="-8"  cy="30"  rx="14" ry="11" opacity=".30"/>
+            <ellipse cx="52"  cy="46"  rx="11" ry="9"  opacity=".26"/>
+          </g>
         </g>
       </g>
+
+      <circle cx="0" cy="0" r="100" fill="url(#limb)" pointer-events="none"/>
     </svg>
+   </div>
   </div>
 
   <h1 class="name fade" id="name" style="animation-delay:.1s">&nbsp;</h1>
