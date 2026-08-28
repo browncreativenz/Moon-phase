@@ -4,7 +4,7 @@
 
 import { describe } from "./phase.js";
 import { drawMoon, initMoon } from "./moon-svg.js";
-import { layout, seedLights, startLights, setMoonlight } from "./scene.js";
+import { layout, seedLights, startLights, setMoonlight, startMeteors } from "./scene.js";
 import { skyPosition } from "./astro.js";
 
 const el = (id) => document.getElementById(id);
@@ -128,12 +128,37 @@ function render(){
 
 /* ===================== start ============================================ */
 
+/* On first load only, run the moon up from new to its real phase. The phase
+ * moves about 12 deg a day, so there is nothing to see on the minute tick --
+ * animating that would be invisible and would cost battery for it. This is
+ * one pass, on arrival, to hand you the current state.
+ */
+function reveal(){
+  const target = describe(Date.now());
+  const t0 = performance.now();
+  const DUR = 1100;
+
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / DUR);
+    const eased = 1 - Math.pow(1 - k, 3);
+    drawMoon({ ...target, lit: target.lit * eased }, south, { dim: 1 });
+    if (k < 1) requestAnimationFrame(step);
+    else render();
+  };
+  requestAnimationFrame(step);
+}
+
 // layout() first: it builds the skyline, and render() needs the rim-light
 // group to exist before it can set the moonlight on it.
 initMoon();
 layout();
 render();
 startLights();
+startMeteors();
+
+if (!window.matchMedia || !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+  reveal();
+}
 
 el("hemi").addEventListener("click", () => {
   south = !south;

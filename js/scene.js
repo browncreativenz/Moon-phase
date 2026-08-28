@@ -71,8 +71,13 @@ export function stars(){
     s.style.left = `${x.toFixed(1)}px`;
     s.style.top = `${y.toFixed(1)}px`;
     s.style.width = s.style.height = `${size}px`;
+    // Scintillation is atmospheric, so it is strongest for stars low over the
+    // town, where you are looking through the most air. High ones sit steady.
+    const screenY = (cy - R) + y;
+    const low = Math.max(0, Math.min(1, screenY / Math.max(1, vh)));
     s.style.setProperty("--o", (0.34 + Math.random() * 0.62).toFixed(2));
-    s.style.setProperty("--dur", `${(3.5 + Math.random() * 7).toFixed(1)}s`);
+    s.style.setProperty("--amp", (0.82 - 0.42 * low * low).toFixed(2));
+    s.style.setProperty("--dur", `${(8 - 4 * low + Math.random() * 5).toFixed(1)}s`);
     s.style.setProperty("--delay", `${(-Math.random() * 10).toFixed(1)}s`);
     frag.appendChild(s);
   }
@@ -284,4 +289,32 @@ export function startLights(){
 export function setMoonlight(v){
   const rim = document.getElementById("rim");
   if (rim) rim.setAttribute("opacity", Math.max(0, Math.min(0.85, v)).toFixed(3));
+}
+
+/* ===================== meteors ========================================== */
+
+/* Rare on purpose: often enough to be a reward for looking up, never often
+   enough to become a feature of the page. */
+export function startMeteors(){
+  if (still) return;
+
+  const fly = () => {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const len = 90 + Math.random() * 150;
+    const deg = 14 + Math.random() * 34;                     // shallow, downward
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const m = document.createElement("div");
+    m.className = "meteor";
+    m.style.left = `${((0.12 + Math.random() * 0.7) * vw).toFixed(0)}px`;
+    m.style.top = `${((0.05 + Math.random() * 0.42) * vh).toFixed(0)}px`;
+    m.style.width = `${len.toFixed(0)}px`;
+    m.style.setProperty("--rot", `${(dir * deg).toFixed(1)}deg`);
+    m.style.setProperty("--travel", `${(len * 2.2).toFixed(0)}px`);
+    m.style.setProperty("--dur", `${(0.5 + Math.random() * 0.5).toFixed(2)}s`);
+    document.body.appendChild(m);
+    m.addEventListener("animationend", () => m.remove());
+    setTimeout(fly, rnd(70000, 220000));
+  };
+
+  setTimeout(fly, rnd(20000, 60000));
 }

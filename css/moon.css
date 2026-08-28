@@ -57,12 +57,14 @@ body{
 }
 .star.lg{ box-shadow:0 0 4px 1px rgba(242,236,224,.30) }
 @media (prefers-reduced-motion:no-preference){
-  #sky{animation:wheel 900s linear infinite}
+  /* one turn per sidereal day. At 900s the drift was plainly visible over a
+     glance, which is not what "like a long exposure" means. */
+  #sky{animation:wheel 86164s linear infinite}
   .star{animation:twinkle var(--dur) ease-in-out var(--delay) infinite}
 }
 @keyframes wheel{ to{ transform:rotate(360deg) } }
 @keyframes twinkle{
-  0%,100%{ opacity:calc(var(--o) * .55) }
+  0%,100%{ opacity:calc(var(--o) * var(--amp, .55)) }
   50%    { opacity:var(--o) }
 }
 
@@ -155,4 +157,24 @@ button:focus-visible{outline:1px solid var(--muted);outline-offset:2px}
 
 @media (prefers-reduced-motion:reduce){
   .moon-pos,#disc{ transition:none }
+}
+
+/* A meteor: a short streak that stretches, then fades.
+   The rotation has to live inside the keyframes -- an inline transform would
+   simply be overridden by the animation -- and translateX after it moves the
+   streak along its own axis, which is the direction it points. */
+.meteor{
+  position:fixed;z-index:0;pointer-events:none;
+  height:1px;border-radius:1px;opacity:0;
+  transform-origin:0 50%;
+  background:linear-gradient(to right, rgba(242,236,224,0), rgba(242,236,224,.9));
+}
+@media (prefers-reduced-motion:no-preference){
+  .meteor{animation:streak var(--dur,.7s) cubic-bezier(.4,0,.85,.4) forwards}
+}
+@keyframes streak{
+  0%  {opacity:0;  transform:rotate(var(--rot)) translateX(0) scaleX(.15)}
+  15% {opacity:.9}
+  70% {opacity:.75}
+  100%{opacity:0;  transform:rotate(var(--rot)) translateX(var(--travel)) scaleX(1)}
 }
