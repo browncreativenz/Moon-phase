@@ -11,6 +11,21 @@ const rnd = (a, b) => a + Math.random() * (b - a);
    rather than a new one on every resize. */
 const CITY_SEED = 0x5EEDC17;
 
+/* Tempo.
+ *
+ * This is something you glance at for a few seconds on the way to bed, not a
+ * screensaver. Motion pitched to reward a long look never gets looked at long
+ * enough to pay off, so the scene has to show it is alive inside that window.
+ * Everything that governs that lives here.
+ */
+const TEMPO = {
+  twinkleFast:  1.5,             // s, a full twinkle low over the town
+  twinkleSlow:  3.0,             // s, overhead, where the air is thinner
+  windowEvery:  [1500, 4000],    // ms between one window changing
+  meteorFirst:  [3000, 9000],    // ms before the first meteor
+  meteorEvery:  [15000, 45000]   // ms between meteors after that
+};
+
 const still = !!(window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
@@ -76,8 +91,10 @@ export function stars(){
     const screenY = (cy - R) + y;
     const low = Math.max(0, Math.min(1, screenY / Math.max(1, vh)));
     s.style.setProperty("--o", (0.34 + Math.random() * 0.62).toFixed(2));
+    const dur = TEMPO.twinkleSlow - (TEMPO.twinkleSlow - TEMPO.twinkleFast) * low
+              + Math.random() * 1.2;
     s.style.setProperty("--amp", (0.82 - 0.42 * low * low).toFixed(2));
-    s.style.setProperty("--dur", `${(8 - 4 * low + Math.random() * 5).toFixed(1)}s`);
+    s.style.setProperty("--dur", `${dur.toFixed(1)}s`);
     s.style.setProperty("--delay", `${(-Math.random() * 10).toFixed(1)}s`);
     frag.appendChild(s);
   }
@@ -269,9 +286,11 @@ function flicker(){
   // drift toward the target, but never in a way that reads as a sweep
   const off = lit > want ? Math.random() < 0.85 : Math.random() < 0.15;
   const pool = wins.filter((w) => (w.dataset.on === "1") === off);
-  if (pool.length) setWin(pool[Math.floor(Math.random() * pool.length)], !off);
+  for (let i = 0; i < 2 && pool.length; i++){
+    setWin(pool.splice(Math.floor(Math.random() * pool.length), 1)[0], !off);
+  }
 
-  setTimeout(flicker, rnd(5000, 12000));
+  setTimeout(flicker, rnd(TEMPO.windowEvery[0], TEMPO.windowEvery[1]));
 }
 
 /* Lay out everything that depends on viewport size. */
@@ -313,8 +332,8 @@ export function startMeteors(){
     m.style.setProperty("--dur", `${(0.5 + Math.random() * 0.5).toFixed(2)}s`);
     document.body.appendChild(m);
     m.addEventListener("animationend", () => m.remove());
-    setTimeout(fly, rnd(70000, 220000));
+    setTimeout(fly, rnd(TEMPO.meteorEvery[0], TEMPO.meteorEvery[1]));
   };
 
-  setTimeout(fly, rnd(20000, 60000));
+  setTimeout(fly, rnd(TEMPO.meteorFirst[0], TEMPO.meteorFirst[1]));
 }

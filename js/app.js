@@ -136,7 +136,7 @@ function render(){
 function reveal(){
   const target = describe(Date.now());
   const t0 = performance.now();
-  const DUR = 1100;
+  const DUR = 800;
 
   const step = (now) => {
     const k = Math.min(1, (now - t0) / DUR);
