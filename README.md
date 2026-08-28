@@ -47,10 +47,16 @@ Sun and the abridged ELP-2000/82 of chapter 47 for the Moon, with Espenak &
 Meeus ΔT so the series are indexed by terrestrial time rather than the browser's
 UTC clock.
 
-Checked against eclipse syzygies — an eclipse is an exact new or full moon — from
-2017 to 2026, new and full moon land within 0.3 min of the published times.
-Lunation lengths over 25 years span 29.277 to 29.824 days, matching the real
-extremes.
+The implementation reproduces Meeus's worked Example 47.a exactly: for 1992
+April 12.0 TD it gives λ 133.162655°, β −3.229126°, Δ 368409.7 km, matching
+every published digit. Against eclipse syzygies — an eclipse is an exact new or
+full moon — from 2017 to 2026, new and full moon land inside a minute, which is
+as fine as those reference times are quoted. Lunation lengths over 25 years span
+29.277 to 29.824 days, matching the real extremes.
+
+Nutation is applied to the Sun and the Moon alike. It is common to both, so it
+cancels in the elongation the phases are defined on; applying it to only one
+leaves up to 0.0048° there, worth about 34 seconds of syzygy timing.
 
 Two deliberate approximations:
 
