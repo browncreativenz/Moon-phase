@@ -355,7 +355,7 @@ function flicker(){
    the scenery does not. town() already no-ops at zero height. The ceiling is
    high because tall phones genuinely have the room -- the old 340 was leaving
    up to 90px of it unused. */
-const BAND_MIN = 96, BAND_MAX = 430, BREATHING = 20;
+const BAND_MIN = 96, BAND_MAX = 430, BREATHING = 14;
 
 export function fitBand(){
   const flow = [...document.body.children].filter((n) => {
