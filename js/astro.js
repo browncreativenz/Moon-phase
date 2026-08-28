@@ -188,3 +188,57 @@ export function moonState(ms){
     waxing: psi < 180
   };
 }
+
+/* ===================== where it is in the sky =========================== */
+
+/* Mean obliquity of the ecliptic, deg (Meeus ch.22). */
+function obliquity(T){
+  return 23.4392911 - 0.0130042 * T - 0.00000016 * T * T + 0.000000504 * T * T * T;
+}
+
+/* Ecliptic to equatorial. Returns right ascension and declination in deg. */
+export function equatorial(lon, lat, T){
+  const e = obliquity(T);
+  const sl = sin(lon), cl = cos(lon), se = sin(e), ce = cos(e);
+  const sb = sin(lat), cb = cos(lat);
+  const ra = Math.atan2(sl * ce - (sb / cb) * se, cl) / DEG;
+  const dec = Math.asin(sb * ce + cb * se * sl) / DEG;
+  return { ra: norm(ra), dec };
+}
+
+/* Greenwich mean sidereal time in degrees (Meeus 12.4). */
+export function gmst(ms){
+  const jd = ms / 86400000 + 2440587.5;
+  const T = (jd - 2451545.0) / 36525;
+  return norm(280.46061837 + 360.98564736629 * (jd - 2451545.0)
+              + 0.000387933 * T * T - T * T * T / 38710000);
+}
+
+/* Altitude and azimuth for an observer. Azimuth is measured from north,
+ * eastward, which is the way a compass reads.
+ */
+export function horizon(ra, dec, ms, lat, lon){
+  const H = norm(gmst(ms) + lon - ra);           // local hour angle, east longitude positive
+  const sd = sin(dec), cd = cos(dec), sp = sin(lat), cp = cos(lat);
+  const alt = Math.asin(sd * sp + cd * cp * cos(H)) / DEG;
+  const az = norm(Math.atan2(sin(H), cos(H) * sp - (sd / cd) * cp) / DEG + 180);
+  return { alt, az };
+}
+
+/* Geocentric altitude of the Moon and the Sun at one instant.
+ *
+ * Geocentric, not topocentric: the Moon's horizontal parallax reaches about a
+ * degree, and refraction lifts a body near the horizon by another half. Both
+ * are ignored, because this drives where the moon sits in a stylised drawing
+ * rather than a rise time.
+ */
+export function skyPosition(ms, lat, lon){
+  const T = centuries(ms);
+  const m = moonPos(T), s = sunPos(T);
+  const me = equatorial(m.lon, m.lat, T);
+  const se = equatorial(s.lon, 0, T);
+  return {
+    moon: horizon(me.ra, me.dec, ms, lat, lon),
+    sun:  horizon(se.ra, se.dec, ms, lat, lon)
+  };
+}

@@ -4,7 +4,8 @@
 
 import { describe } from "./phase.js";
 import { drawMoon, initMoon } from "./moon-svg.js";
-import { layout, seedLights, startLights } from "./scene.js";
+import { layout, seedLights, startLights, setMoonlight } from "./scene.js";
+import { skyPosition } from "./astro.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -15,17 +16,28 @@ const el = (id) => document.getElementById(id);
  * of its latitude, and the button lets you override it.
  */
 const STORE = "moon.south";
+const STORE_POS = "moon.pos";
 
-function loadSouth(){
-  try { return localStorage.getItem(STORE); } catch { return null; }
+function readStore(k){
+  try { return localStorage.getItem(k); } catch { return null; }
+}
+function writeStore(k, v){
+  try { localStorage.setItem(k, v); } catch { /* private mode */ }
 }
 
-function saveSouth(v){
-  try { localStorage.setItem(STORE, v ? "1" : "0"); } catch { /* private mode */ }
-}
-
-const stored = loadSouth();
+const stored = readStore(STORE);
 let south = stored !== null ? stored === "1" : false;
+
+/* Where the moon actually is in the sky needs a full position, not just the
+ * sign of a latitude. Without one the scene simply stays centred. */
+let place = null;
+try {
+  const raw = readStore(STORE_POS);
+  if (raw){
+    const [lat, lon] = JSON.parse(raw);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) place = { lat, lon };
+  }
+} catch { /* ignore a malformed entry */ }
 
 /* ===================== formatting ======================================= */
 
@@ -49,16 +61,65 @@ function inDays(ms, now){
 
 /* ===================== render =========================================== */
 
+/* Blend the sky from night toward twilight by the sun's real altitude. Nothing
+ * happens below -18 deg, where astronomical twilight ends and it is simply
+ * night; the blend runs up from there to the horizon.
+ */
+function twilight(sunAlt){
+  const t = Math.max(0, Math.min(1, (sunAlt + 18) / 18));
+  const mix = (a, b) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  const hi = mix([15, 19, 32],  [26, 40, 72]);
+  const lo = mix([20, 26, 43],  [54, 68, 106]);
+  const css = document.documentElement.style;
+  css.setProperty("--sky-hi", `rgb(${hi.join(",")})`);
+  css.setProperty("--sky-lo", `rgb(${lo.join(",")})`);
+}
+
+/* Altitude drives a bounded offset rather than a free position: the layout
+ * below the moon still has to hold together. High moon rides near the top of
+ * its travel, a setting one sinks toward the roofline.
+ */
+function altitudeOffset(alt){
+  // Kept small deliberately: .moon-wrap reserves matching room below itself,
+  // and any more travel than that puts the disc through the heading.
+  const span = Math.min(40, window.innerHeight * 0.055);
+  const a = Math.max(-7, Math.min(90, alt));
+  return span * (1 - a / 90);
+}
+
+const fmtKm = (km) => Math.round(km).toLocaleString();
+
 function render(){
   const now = new Date();
   const ms = now.getTime();
   const m = describe(ms);
 
-  drawMoon(m, south);
+  const sky = place ? skyPosition(ms, place.lat, place.lon) : null;
+  const up = sky ? sky.moon.alt > 0 : true;
+
+  drawMoon(m, south, {
+    moonY: sky ? altitudeOffset(sky.moon.alt) : 0,
+    dim: up ? 1 : 0.42
+  });
+
+  if (sky){
+    twilight(sky.sun.alt);
+    // moonlight needs the moon both bright and reasonably high to reach anything
+    setMoonlight(up ? m.lit * Math.min(1, sky.moon.alt / 42) * 0.7 : 0);
+  } else {
+    setMoonlight(m.lit * 0.35);
+  }
 
   el("date").textContent = fmtDate(now);
   el("name").textContent = m.name;
   el("stats").textContent = `${m.percent}% lit · ${m.age.toFixed(1)} days old`;
+
+  const detail = [`${fmtKm(m.distance)} km`];
+  if (sky){
+    detail.push(up ? `${Math.round(sky.moon.alt)}° above horizon` : "below the horizon");
+  }
+  el("detail").textContent = detail.join(" · ");
+
   el("next").textContent = m.next !== null
     ? `${m.nextIsFull ? "Full moon" : "New moon"} ${inDays(m.next, ms)}`
     : "";
@@ -67,21 +128,31 @@ function render(){
 
 /* ===================== start ============================================ */
 
+// layout() first: it builds the skyline, and render() needs the rim-light
+// group to exist before it can set the moonlight on it.
 initMoon();
-render();
 layout();
+render();
 startLights();
 
 el("hemi").addEventListener("click", () => {
   south = !south;
-  saveSouth(south);
+  writeStore(STORE, south ? "1" : "0");
   render();
 });
 
-// Only ask for a location if the reader has never chosen a hemisphere.
+// Ask for a location only if the reader has never chosen a hemisphere. It is
+// used for the sign of the latitude and for where the moon sits in the sky.
 if (stored === null && navigator.geolocation){
   navigator.geolocation.getCurrentPosition(
-    (pos) => { south = pos.coords.latitude < 0; saveSouth(south); render(); },
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      place = { lat: latitude, lon: longitude };
+      writeStore(STORE_POS, JSON.stringify([latitude, longitude]));
+      south = latitude < 0;
+      writeStore(STORE, south ? "1" : "0");
+      render();
+    },
     () => {},
     { timeout: 8000, maximumAge: 86400000 }
   );
@@ -90,7 +161,7 @@ if (stored === null && navigator.geolocation){
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(layout, 250);
+  resizeTimer = setTimeout(() => { layout(); render(); }, 250);
 });
 
 setInterval(render, 60000);

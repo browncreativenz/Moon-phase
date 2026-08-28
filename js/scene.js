@@ -21,6 +21,7 @@ const C = {
   back:  CSS.getPropertyValue("--town-back").trim()  || "#080b16",
   front: CSS.getPropertyValue("--town-front").trim() || "#020408",
   wire:  CSS.getPropertyValue("--wire").trim()       || "#161c2b",
+  rim:   CSS.getPropertyValue("--town-rim").trim()   || "#3d4c6b",
   win:   CSS.getPropertyValue("--win").trim()        || "#e0a355",
   tv:    CSS.getPropertyValue("--win-tv").trim()     || "#7ea6d8"
 };
@@ -202,6 +203,19 @@ export function town(){
   layer(front, rng, width, base, u, { gapBase: 5, scale: 1, heroAt: 0.34,
     allowHero: true, minH: 25, maxH: 88, trees: ["conifer"] }, C.front, "near");
 
+  // Moonlight: the same near layer again, a touch higher and in a cool colour,
+  // sitting behind the real one so only the moon-facing edges peek out.
+  const rim = front.cloneNode(true);
+  rim.id = "rim";
+  rim.setAttribute("transform", `translate(0,${(-Math.max(1, u * 1.1)).toFixed(2)})`);
+  rim.setAttribute("opacity", "0");
+  rim.querySelectorAll(".win").forEach((n) => n.remove());
+  rim.querySelectorAll("*").forEach((n) => {
+    if (n.getAttribute("fill")) n.setAttribute("fill", C.rim);
+    if (n.getAttribute("stroke")) n.setAttribute("stroke", C.rim);
+  });
+  svg.insertBefore(rim, front);
+
   // One window has a television in it. Picked from the seeded stream, so it is
   // the same window every night.
   if (wins.length){
@@ -263,4 +277,11 @@ export function layout(){
 
 export function startLights(){
   if (!still) setTimeout(flicker, rnd(3000, 7000));
+}
+
+/* Moonlight on the rooftops, 0..1. Driven by how bright and how high the moon
+   actually is; a low or thin moon lights nothing. */
+export function setMoonlight(v){
+  const rim = document.getElementById("rim");
+  if (rim) rim.setAttribute("opacity", Math.max(0, Math.min(0.85, v)).toFixed(3));
 }
