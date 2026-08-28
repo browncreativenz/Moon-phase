@@ -347,7 +347,9 @@ const TREES   = ["conifer", "broadleaf"];
    a shape instead of being uniformly noisy. */
 function envelope(t, heroAt){
   const d = t - heroAt;
-  return 0.52 + 0.48 * Math.exp(-(d * d) / (2 * 0.24 * 0.24));
+  // The floor sets how low the skyline drops away from the hero. Too low and a
+  // tall band is mostly empty sky above the rooftops.
+  return 0.72 + 0.28 * Math.exp(-(d * d) / (2 * 0.26 * 0.26));
 }
 
 export function compose(rng, width, u, cfg){
@@ -386,7 +388,7 @@ export function compose(rng, width, u, cfg){
     } else {
       type = FILLERS[(rng() * FILLERS.length) | 0];
       w = 18 + rng() * 22;
-      h = (minH + (maxH - minH) * rng() * 0.72) * env;
+      h = (minH + (maxH - minH) * rng() * 0.9) * env;
     }
     sinceAccent++; sinceTree++;
 

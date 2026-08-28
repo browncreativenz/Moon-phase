@@ -202,12 +202,12 @@ export function town(){
   const far = mk("g", { opacity: 0.85 });
   svg.appendChild(far);
   layer(far, rng, width, base, u, { gapBase: 11, scale: 0.42, heroAt: 0.72,
-    allowHero: false, minH: 22, maxH: 62, trees: ["broadleaf"] }, C.far, "far");
+    allowHero: false, minH: 30, maxH: 62, trees: ["broadleaf"] }, C.far, "far");
 
   const back = mk("g", {});
   svg.appendChild(back);
   layer(back, rng, width, base, u, { gapBase: 8, scale: 0.66, heroAt: 0.66,
-    allowHero: false, minH: 25, maxH: 74, trees: ["broadleaf", "conifer"] }, C.back, "mid");
+    allowHero: false, minH: 38, maxH: 78, trees: ["broadleaf", "conifer"] }, C.back, "mid");
 
   // A low haze band, behind the near layer so it pushes the distance back
   // without washing the foreground out.
@@ -223,7 +223,7 @@ export function town(){
   const front = mk("g", {});
   svg.appendChild(front);
   layer(front, rng, width, base, u, { gapBase: 5, scale: 1, heroAt: 0.34,
-    allowHero: true, minH: 25, maxH: 88, trees: ["conifer"] }, C.front, "near");
+    allowHero: true, minH: 48, maxH: 92, trees: ["conifer"] }, C.front, "near");
 
   // Moonlight: the same near layer again, a touch higher and in a cool colour,
   // sitting behind the real one so only the moon-facing edges peek out.
