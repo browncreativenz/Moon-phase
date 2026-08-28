@@ -3,7 +3,7 @@
  * knows nothing about the moon beyond where on screen it sits.
  */
 
-import { seeded, mk, SHAPES, LOWRISE, roofClutter, windowGrid, compose, maybeCrane } from "./city.js";
+import { seeded, mk, SHAPES, LOWRISE, DOMESTIC, roofClutter, windowGrid, sparseLights, compose, maybeCrane } from "./city.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -169,6 +169,28 @@ function layer(g, rng, width, base, u, cfg, fill, detail){
     if ((detail === "mid" || detail === "near") && b.type === "flat"){
       roofClutter(g, b.x, b.w, top, u, fill, rng);
     }
+    // The foreground stays mostly dark; a couple of houses get one lit window
+    // each, capped for the whole layer so it never becomes a pattern.
+    if (detail === "silhouette"){
+      if (cfg.lightsLeft > 0 && DOMESTIC.includes(b.type) && rng() < 0.75){
+        for (const win of sparseLights(b.w, top, base, u, rng)){
+          if (cfg.lightsLeft-- <= 0) break;
+          const el = mk("rect", {
+            x: (b.x + win.x).toFixed(1), y: win.y.toFixed(1),
+            width: win.w.toFixed(1), height: win.h.toFixed(1),
+            rx: (u * 0.3).toFixed(1), fill: C.win, opacity: 0
+          });
+          el.setAttribute("class", "win");
+          el.dataset.lit = Math.min(0.5, rnd(0.26, 0.44) * win.warm).toFixed(2);
+          el.dataset.on = "0";
+          el.dataset.eager = "1";   // see seedLights: too few of these to leave to the hourly odds
+          g.appendChild(el);
+          wins.push(el);
+        }
+      }
+      continue;
+    }
+
     if (detail !== "near") continue;
 
     for (const win of windowGrid(b.w, top, base, u, rng)){
@@ -296,7 +318,7 @@ export function town(){
   svg.appendChild(fore);
   layer(fore, rng, width, base, u * 1.5, { gapBase: 2, scale: 1, heroAt: 0.5,
     allowHero: false, minH: 9, maxH: 21, fillers: LOWRISE, accents: [],
-    overlap: 0.42, wMin: 14, wSpread: 15,
+    overlap: 0.42, wMin: 14, wSpread: 15, lightsLeft: 4,
     edge: { colour: C.edge, opacity: 0.52, boost: 0.38, lift: 0.30 } }, C.fore, "silhouette");
 
   host.textContent = "";
@@ -323,7 +345,14 @@ function setWin(w, on){
 
 export function seedLights(){
   const want = litRatio();
-  wins.forEach((w) => setWin(w, Math.random() < want));
+  wins.forEach((w) => setWin(w, Math.random() < lightOdds(w, want)));
+}
+
+/* The foreground has only a handful of windows against two hundred behind it,
+   so at the hourly rate they are usually all dark and the nearest houses read
+   as derelict. These are the closest homes; light them more readily. */
+function lightOdds(w, want){
+  return w.dataset.eager ? Math.min(0.9, 0.35 + want * 1.6) : want;
 }
 
 function flicker(){

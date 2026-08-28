@@ -410,6 +410,33 @@ export function windowGrid(w, top, base, u, rng){
   return out;
 }
 
+/* A few big soft windows for the foreground, instead of a grid.
+ *
+ * Close to you a window is large, and at this distance you would see the glow
+ * through a curtain rather than a crisp lit rectangle -- so these are wide and
+ * dim rather than small and bright. Kept scarce on purpose: the nearest plane
+ * reads as near because it is mostly unlit, and a grid down there would undo
+ * that. Only the places somebody lives get them.
+ */
+export const DOMESTIC = ["house", "terrace"];
+
+export function sparseLights(w, top, base, u, rng){
+  const avail = base - top;
+  const ww = u * 3.2, wh = u * 3.4;
+  // Only reject a facade genuinely too small to hold one; the guard used to be
+  // strict enough that a third of cities came out with no lit window at all.
+  if (avail < wh * 1.15 || w < ww * 1.7) return [];
+
+  const out = [];
+  const n = rng() < 0.45 ? 2 : 1;
+  for (let i = 0; i < n; i++){
+    const x = ww * 0.6 + rng() * Math.max(0, w - ww * 2.2);
+    const y = top + wh * 0.5 + rng() * Math.max(0, avail - wh * 2.0);
+    out.push({ x, y, w: ww, h: wh, warm: 0.9 + rng() * 0.3 });
+  }
+  return out;
+}
+
 /* ===================== composition ====================================== */
 
 /* Mostly flat blocks: they are what a city is made of, and they leave the
