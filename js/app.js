@@ -19,6 +19,7 @@ const el = (id) => document.getElementById(id);
  */
 const STORE = "moon.south";
 const STORE_POS = "moon.pos";
+const STORE_GEO = "moon.geo";   // "off" once asking has failed once
 
 function readStore(k){
   try { return localStorage.getItem(k); } catch { return null; }
@@ -91,15 +92,6 @@ function altitudeOffset(alt){
 
 const fmtKm = (km) => Math.round(km).toLocaleString();
 
-/* The clock face the bright side points at, for checking against the real sky.
- * 12 is straight up, and the hours run round the way a clock does.
- */
-function limbClock(limbAngle){
-  const screen = (360 - limbAngle) % 360;          // anticlockwise -> clockwise
-  const h = Math.round(screen / 30) % 12;
-  return `${h === 0 ? 12 : h} o'clock`;
-}
-
 function render(){
   const now = new Date();
   const ms = now.getTime();
@@ -108,7 +100,9 @@ function render(){
   const sky = place ? skyPosition(ms, place.lat, place.lon) : null;
   const up = sky ? sky.moon.alt > 0 : true;
 
-  const orient = sky ? { limbAngle: sky.limbAngle } : { south };
+  const orient = sky
+    ? { limbAngle: sky.limbAngle, parallacticAngle: sky.parallacticAngle }
+    : { south };
 
   drawMoon(m, orient, {
     moonY: sky ? altitudeOffset(sky.moon.alt) : 0,
@@ -136,13 +130,12 @@ function render(){
   el("next").textContent = m.next !== null
     ? `${m.nextIsFull ? "Full moon" : "New moon"} ${inDays(m.next, ms)}`
     : "";
-  // With a real angle there is nothing left to toggle: the orientation is
-  // computed, so the line reports it instead of offering a choice.
-  const hemi = el("hemi");
-  hemi.disabled = !!sky;
-  hemi.textContent = sky
-    ? `Bright side at ${limbClock(sky.limbAngle)}`
-    : `${south ? "Southern" : "Northern"} hemisphere view`;
+  // With a real angle there is nothing to toggle and nothing worth saying, so
+  // the control goes rather than sitting there inert. Hidden, not disabled:
+  // a disabled button still announces itself to a screen reader.
+  const foot = document.querySelector(".foot");
+  foot.hidden = !!sky;
+  el("hemi").textContent = `${south ? "Southern" : "Northern"} hemisphere view`;
 }
 
 /* ===================== start ============================================ */
@@ -156,7 +149,9 @@ function reveal(){
   const now = Date.now();
   const target = describe(now);
   const sky = place ? skyPosition(now, place.lat, place.lon) : null;
-  const orient = sky ? { limbAngle: sky.limbAngle } : { south };
+  const orient = sky
+    ? { limbAngle: sky.limbAngle, parallacticAngle: sky.parallacticAngle }
+    : { south };
   const t0 = performance.now();
   const DUR = 800;
 
@@ -191,10 +186,13 @@ el("hemi").addEventListener("click", () => {
   render();
 });
 
-// Ask whenever there is no stored position. A location now sets the disc's
-// orientation as well as where the moon sits in the sky, so it earns the
-// prompt; someone who declines still gets the hemisphere toggle.
-if (!place && navigator.geolocation){
+/* Ask whenever there is no stored position: a location now sets the disc's
+ * orientation as well as where the moon sits, so it earns the prompt. But
+ * remember a refusal. A browser persists an outright denial, yet a prompt the
+ * reader simply swipes away is not remembered, and without this flag they
+ * would be asked again every single time they opened the app.
+ */
+if (!place && readStore(STORE_GEO) !== "off" && navigator.geolocation){
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const { latitude, longitude } = pos.coords;
@@ -204,7 +202,7 @@ if (!place && navigator.geolocation){
       writeStore(STORE, south ? "1" : "0");
       render();
     },
-    () => {},
+    () => { writeStore(STORE_GEO, "off"); },
     { timeout: 8000, maximumAge: 86400000 }
   );
 }

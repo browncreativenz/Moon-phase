@@ -32,7 +32,7 @@ export function initMoon(){
     disc:  document.getElementById("disc"),
     halo:  document.getElementById("halo"),
     earth: document.getElementById("earthshine"),
-    blur:  document.querySelector("#soften feGaussianBlur")
+    maria: document.getElementById("maria")
   };
 }
 
@@ -81,6 +81,17 @@ export function drawMoon({ lit, waxing, distance }, orient = {}, opts = {}){
 
   const tilt = unwrap(known ? tiltFor(orient.limbAngle) : (orient.south ? 180 : 0));
   nodes.disc.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
+
+  /* The surface is not the lit side. Turning the disc to face the sun carries
+     the maria with it, but the moon's own north follows the parallactic angle
+     alone, so they need the disc's rotation undone and q put back. Without a
+     location there is nothing to compute and they simply ride along. */
+  if (nodes.maria){
+    const q = orient.parallacticAngle;
+    nodes.maria.style.transform = (known && Number.isFinite(q))
+      ? `rotate(${(-tilt - q).toFixed(2)}deg)`
+      : "";
+  }
   nodes.halo.setAttribute("opacity", (0.15 + 0.85 * lit).toFixed(3));
 
   // Earthshine is brightest when the crescent is thinnest -- "the old moon in
@@ -89,14 +100,7 @@ export function drawMoon({ lit, waxing, distance }, orient = {}, opts = {}){
   // to stay the thing you read first.
   nodes.earth.setAttribute("opacity", (0.085 * Math.pow(1 - lit, 1.8)).toFixed(3));
 
-  // Soften the terminator, but back off as it approaches the limb: near full
-  // and new the two coincide, and blurring there rounds off an edge that
-  // should stay crisp. Widest at the quarters, where the terminator runs
-  // straight down the middle of the disc.
-  if (nodes.blur){
-    const nearLimb = Math.abs(2 * lit - 1);
-    nodes.blur.setAttribute("stdDeviation", (0.35 + 1.45 * (1 - nearLimb)).toFixed(2));
-  }
+
 
   if (nodes.pos && distance){
     const scale = MEAN_DIST / distance;

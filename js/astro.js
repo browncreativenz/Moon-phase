@@ -266,11 +266,15 @@ export function skyPosition(ms, lat, lon){
   // zenith. Their difference is where the bright side points as you stand
   // and look at it, measured round from straight up.
   const H = norm(gmst(ms) + lon - me.ra);
-  const limbAngle = norm(brightLimb(se, me) - parallactic(H, me.dec, lat));
+  const q = parallactic(H, me.dec, lat);
+  const limbAngle = norm(brightLimb(se, me) - q);
 
   return {
     moon: horizon(me.ra, me.dec, ms, lat, lon),
     sun:  horizon(se.ra, se.dec, ms, lat, lon),
-    limbAngle
+    limbAngle,
+    // The lit side follows chi - q, but the surface does not: the moon's own
+    // north sits at q from the zenith, so the maria need q on its own.
+    parallacticAngle: q
   };
 }
