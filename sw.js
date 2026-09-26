@@ -5,7 +5,7 @@
  * so a stale build is never left behind.
  */
 
-const VERSION = "moon-v2";
+const VERSION = "moon-v3";
 
 const ASSETS = [
   "./",
@@ -13,6 +13,7 @@ const ASSETS = [
   "./manifest.json",
   "./css/moon.css",
   "./js/app.js",
+  "./js/install.js",
   "./js/astro.js",
   "./js/phase.js",
   "./js/moon-svg.js",

@@ -192,3 +192,31 @@ button:focus-visible{outline:1px solid var(--muted);outline-offset:2px}
   70% {opacity:.75}
   100%{opacity:0;  transform:rotate(var(--rot)) translateX(var(--travel)) scaleX(1)}
 }
+
+/* The home-screen offer. Fixed, so fitBand's measurement of the text column
+   steps over it and the skyline keeps its height. */
+.install{
+  position:fixed;z-index:3;
+  /* Bottom, over the skyline. At the top it covered the date, and the
+     scenery is the one thing here that can afford to be sat on. */
+  left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);
+  display:flex;align-items:center;gap:10px;
+  padding:10px 10px 10px 14px;
+  background:rgba(27,34,51,.94);
+  border:1px solid var(--hair);border-radius:4px;
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--bone-dim);line-height:1.45;
+}
+.install[hidden]{display:none}
+.install span{flex:1;min-width:0}
+.install button{
+  flex:none;padding:6px 10px;font-size:10px;letter-spacing:.16em;
+  border:1px solid var(--hair);border-radius:3px;color:var(--bone-dim);
+}
+.install button:hover{color:var(--bone)}
+#install-no{
+  border:0;padding:6px 8px;font-size:15px;letter-spacing:0;line-height:1;
+}
+@media (prefers-reduced-motion:no-preference){
+  .install{animation:fade .5s ease both}
+}

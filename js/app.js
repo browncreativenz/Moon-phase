@@ -6,6 +6,7 @@ import { describe } from "./phase.js";
 import { drawMoon, initMoon } from "./moon-svg.js";
 import { layout, seedLights, startLights, setMoonlight, startMeteors, reseedCity } from "./scene.js";
 import { skyPosition } from "./astro.js";
+import { initInstall } from "./install.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -174,6 +175,7 @@ layout();
 render();
 startLights();
 startMeteors();
+initInstall();
 
 if (!window.matchMedia || !window.matchMedia("(prefers-reduced-motion: reduce)").matches){
   reveal();
