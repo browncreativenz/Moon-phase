@@ -7,13 +7,13 @@
  * or once the offer has been turned down, it never appears again.
  */
 
-const STORE = "moon.install";        // "no" once dismissed, or once installed
+const FLAG = "moon.install";         // "no" once dismissed, or once installed
 
-function readStore(){
-  try { return localStorage.getItem(STORE); } catch { return null; }
+function readFlag(){
+  try { return localStorage.getItem(FLAG); } catch { return null; }
 }
-function writeStore(v){
-  try { localStorage.setItem(STORE, v); } catch { /* private mode */ }
+function writeFlag(v){
+  try { localStorage.setItem(FLAG, v); } catch { /* private mode */ }
 }
 
 /* Already on the home screen. iOS answers the old proprietary way. */
@@ -31,7 +31,7 @@ function isIOS(){
 }
 
 export function initInstall(){
-  if (installed() || readStore() === "no") return;
+  if (installed() || readFlag() === "no") return;
 
   const bar = document.getElementById("install");
   const text = document.getElementById("install-text");
@@ -44,7 +44,7 @@ export function initInstall(){
   const show = () => { bar.hidden = false; };
   const hide = (remember) => {
     bar.hidden = true;
-    if (remember) writeStore("no");
+    if (remember) writeFlag("no");
   };
 
   no.addEventListener("click", () => hide(true));
