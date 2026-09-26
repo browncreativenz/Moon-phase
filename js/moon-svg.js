@@ -40,17 +40,47 @@ export function initMoon(){
    diameter, so a supermoon really is visibly bigger than a micromoon. */
 const MEAN_DIST = 385000.56;
 
-/* `south` flips the whole disc, maria included, for a southern view. The real
- * bright-limb angle also depends on where the moon sits in the sky; a 180 deg
- * turn is the usual stand-in for that.
+const norm360 = (a) => { a = a % 360; return a < 0 ? a + 360 : a; };
+
+/* At zero rotation litPath puts the bright limb at 3 o'clock. Position angles
+ * run anticlockwise from the zenith as you look up at the sky, while SVG turns
+ * clockwise, so the screen angle is 360 - limbAngle and the turn we need is
+ * that less the 90 deg the path already carries.
  */
-export function drawMoon({ lit, waxing, distance }, south, opts = {}){
+const tiltFor = (limbAngle) => norm360(270 - limbAngle);
+
+/* Rotation is continuous, not modular: 359 deg and -1 deg draw the same disc
+ * but animate very differently. Track it unwrapped so the transition always
+ * takes the short way round.
+ */
+let lastTilt = null;
+function unwrap(target){
+  if (lastTilt === null) return (lastTilt = target);
+  let t = target;
+  while (t - lastTilt >  180) t -= 360;
+  while (t - lastTilt < -180) t += 360;
+  return (lastTilt = t);
+}
+
+/* `orient` carries either the real bright-limb angle, or -- with no location
+ * to compute one from -- the hemisphere flip that stands in for it.
+ */
+export function drawMoon({ lit, waxing, distance }, orient = {}, opts = {}){
   if (!nodes) initMoon();
 
-  const d = litPath(lit, waxing);
+  const known = Number.isFinite(orient.limbAngle);
+
+  // With a real angle the disc is simply turned to face the sun, so it is
+  // always drawn in its waxing form and the rotation carries the lit side to
+  // whichever edge it belongs on. That is a rigid turn of the whole moon,
+  // maria included, which is what you actually see: the moon does not mirror
+  // between hemispheres, it rotates.
+  const d = litPath(lit, known ? true : waxing);
   nodes.lit.setAttribute("d", d);
   nodes.clip.setAttribute("d", d);                 // maria only show where lit
-  nodes.disc.style.transform = south ? "rotate(180deg)" : "rotate(0deg)";
+
+  const tilt = unwrap(known ? tiltFor(orient.limbAngle) : (orient.south ? 180 : 0));
+  nodes.disc.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
   nodes.halo.setAttribute("opacity", (0.15 + 0.85 * lit).toFixed(3));
 
   // Earthshine is brightest when the crescent is thinnest -- "the old moon in

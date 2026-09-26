@@ -35,7 +35,7 @@ js/
   moon-svg.js       the lit-limb path and the disc's SVG nodes
   city.js           silhouette vocabulary and the skyline composer
   scene.js          star field, skyline layers, window lights, meteors
-  app.js            wiring: clock, render loop, hemisphere, offline
+  app.js            wiring: clock, render loop, orientation, offline
 icons/
 ```
 
@@ -65,13 +65,17 @@ Altitude and azimuth are geocentric. Lunar parallax reaches about a degree and
 refraction lifts a low body by another half; both are ignored, because this
 places a disc in a stylised drawing rather than predicting a rise time.
 
-Two deliberate approximations:
+Two things are done the long way rather than the usual way:
 
 - **Age** is measured from the previous new moon, found by root-finding
   backwards, rather than by dividing the phase angle by the synodic month.
-- **Hemisphere** flips the disc 180°. The true bright-limb angle depends on the
-  moon's altitude and azimuth; the flip is the usual stand-in. Geolocation is
-  only ever used for the sign of your latitude, and the button overrides it.
+- **Disc orientation** is the real position angle of the bright limb — χ from
+  Meeus 48.5, less the parallactic angle — giving the direction the lit side
+  points, measured round from the zenith. The disc is rotated to match, so it
+  turns through the night the way the real moon does: lit edge up at the
+  meridian, rolling to a bowl as it sets. A 180° hemisphere flip survives only
+  as the fallback when there is no location, where it is about right near the
+  meridian and wrong everywhere else.
 
 ## What the scene is doing
 

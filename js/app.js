@@ -11,9 +11,11 @@ const el = (id) => document.getElementById(id);
 
 /* ===================== hemisphere ======================================= */
 
-/* Only the orientation of the disc depends on where you are -- the phase
- * itself is the same everywhere. So all we want from a location is the sign
- * of its latitude, and the button lets you override it.
+/* The phase is the same everywhere; only the disc's orientation depends on
+ * where you stand -- and on where the moon is in the sky at that moment, which
+ * a hemisphere cannot express. Given a real location we compute the bright
+ * limb angle instead. The sign of the latitude is the fallback for when there
+ * is no location to compute from, and the button still overrides that.
  */
 const STORE = "moon.south";
 const STORE_POS = "moon.pos";
@@ -89,6 +91,15 @@ function altitudeOffset(alt){
 
 const fmtKm = (km) => Math.round(km).toLocaleString();
 
+/* The clock face the bright side points at, for checking against the real sky.
+ * 12 is straight up, and the hours run round the way a clock does.
+ */
+function limbClock(limbAngle){
+  const screen = (360 - limbAngle) % 360;          // anticlockwise -> clockwise
+  const h = Math.round(screen / 30) % 12;
+  return `${h === 0 ? 12 : h} o'clock`;
+}
+
 function render(){
   const now = new Date();
   const ms = now.getTime();
@@ -97,7 +108,9 @@ function render(){
   const sky = place ? skyPosition(ms, place.lat, place.lon) : null;
   const up = sky ? sky.moon.alt > 0 : true;
 
-  drawMoon(m, south, {
+  const orient = sky ? { limbAngle: sky.limbAngle } : { south };
+
+  drawMoon(m, orient, {
     moonY: sky ? altitudeOffset(sky.moon.alt) : 0,
     dim: up ? 1 : 0.42
   });
@@ -123,7 +136,13 @@ function render(){
   el("next").textContent = m.next !== null
     ? `${m.nextIsFull ? "Full moon" : "New moon"} ${inDays(m.next, ms)}`
     : "";
-  el("hemi").textContent = `${south ? "Southern" : "Northern"} hemisphere view`;
+  // With a real angle there is nothing left to toggle: the orientation is
+  // computed, so the line reports it instead of offering a choice.
+  const hemi = el("hemi");
+  hemi.disabled = !!sky;
+  hemi.textContent = sky
+    ? `Bright side at ${limbClock(sky.limbAngle)}`
+    : `${south ? "Southern" : "Northern"} hemisphere view`;
 }
 
 /* ===================== start ============================================ */
@@ -134,14 +153,17 @@ function render(){
  * one pass, on arrival, to hand you the current state.
  */
 function reveal(){
-  const target = describe(Date.now());
+  const now = Date.now();
+  const target = describe(now);
+  const sky = place ? skyPosition(now, place.lat, place.lon) : null;
+  const orient = sky ? { limbAngle: sky.limbAngle } : { south };
   const t0 = performance.now();
   const DUR = 800;
 
   const step = (now) => {
     const k = Math.min(1, (now - t0) / DUR);
     const eased = 1 - Math.pow(1 - k, 3);
-    drawMoon({ ...target, lit: target.lit * eased }, south, { dim: 1 });
+    drawMoon({ ...target, lit: target.lit * eased }, orient, { dim: 1 });
     if (k < 1) requestAnimationFrame(step);
     else render();
   };
@@ -163,14 +185,16 @@ if (!window.matchMedia || !window.matchMedia("(prefers-reduced-motion: reduce)")
 }
 
 el("hemi").addEventListener("click", () => {
+  if (place) return;                    // orientation is computed, not chosen
   south = !south;
   writeStore(STORE, south ? "1" : "0");
   render();
 });
 
-// Ask for a location only if the reader has never chosen a hemisphere. It is
-// used for the sign of the latitude and for where the moon sits in the sky.
-if (stored === null && navigator.geolocation){
+// Ask whenever there is no stored position. A location now sets the disc's
+// orientation as well as where the moon sits in the sky, so it earns the
+// prompt; someone who declines still gets the hemisphere toggle.
+if (!place && navigator.geolocation){
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const { latitude, longitude } = pos.coords;

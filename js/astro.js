@@ -225,6 +225,30 @@ export function horizon(ra, dec, ms, lat, lon){
   return { alt, az };
 }
 
+/* Position angle of the midpoint of the Moon's bright limb, measured from the
+ * celestial north pole eastward (Meeus 48.5). Reproduces his Example 48.1
+ * exactly: 285.0 deg.
+ *
+ * This is the direction the lit side points, but referred to the sky's own
+ * north -- not to the observer's "up".
+ */
+export function brightLimb(sun, moon){
+  return norm(Math.atan2(
+    cos(sun.dec) * sin(sun.ra - moon.ra),
+    sin(sun.dec) * cos(moon.dec) - cos(sun.dec) * sin(moon.dec) * cos(sun.ra - moon.ra)
+  ) / DEG);
+}
+
+/* Parallactic angle (Meeus 14.1): at the body, the angle between the direction
+ * to the celestial pole and the direction to the zenith. Zero on the meridian,
+ * and it swings hard either side of it -- which is exactly why a fixed
+ * hemisphere flip cannot stand in for it.
+ */
+export function parallactic(H, dec, lat){
+  return Math.atan2(sin(H),
+    Math.tan(lat * DEG) * cos(dec) - sin(dec) * cos(H)) / DEG;
+}
+
 /* Geocentric altitude of the Moon and the Sun at one instant.
  *
  * Geocentric, not topocentric: the Moon's horizontal parallax reaches about a
@@ -237,8 +261,16 @@ export function skyPosition(ms, lat, lon){
   const m = moonPos(T), s = sunPos(T);
   const me = equatorial(m.lon, m.lat, T);
   const se = equatorial(s.lon, 0, T);
+  // Turning the limb angle from the sky's frame into the observer's is the
+  // whole job: chi is referred to celestial north, q rotates that to the
+  // zenith. Their difference is where the bright side points as you stand
+  // and look at it, measured round from straight up.
+  const H = norm(gmst(ms) + lon - me.ra);
+  const limbAngle = norm(brightLimb(se, me) - parallactic(H, me.dec, lat));
+
   return {
     moon: horizon(me.ra, me.dec, ms, lat, lon),
-    sun:  horizon(se.ra, se.dec, ms, lat, lon)
+    sun:  horizon(se.ra, se.dec, ms, lat, lon),
+    limbAngle
   };
 }
