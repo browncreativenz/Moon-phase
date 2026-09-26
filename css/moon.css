@@ -116,7 +116,10 @@ body{
 .moon-pos{
   width:100%;height:100%;
   transform:translateY(var(--moon-y)) scale(var(--moon-scale,1));
-  transition:transform .8s cubic-bezier(.22,.61,.36,1);
+  /* Opacity is in here so a moon that has set fades out of the scene rather
+     than dropping to its dimmed value in a single frame. */
+  transition:transform .8s cubic-bezier(.22,.61,.36,1),
+             opacity .9s ease;
 }
 .moon-wrap svg{display:block;width:100%;height:100%;overflow:visible}
 /* The disc turns to the real bright-limb angle; animating it carries the

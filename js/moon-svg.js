@@ -62,13 +62,45 @@ function unwrap(target){
   return (lastTilt = t);
 }
 
+/* The transitions on the disc and on .moon-pos exist to carry the moon through
+ * the night. They are wrong on arrival: the browser's starting point is an
+ * untilted, centred disc, so the first real angle is animated as a spin and the
+ * first real altitude as a slide, neither of which is anything the sky did.
+ * Snap instead, up to and including the first draw that knows where the moon
+ * is; only after that is a change a real change worth animating.
+ */
+let painted = false;
+let knownSeen = false;
+
+function withoutTransition(fn){
+  const els = [nodes.disc, nodes.pos, nodes.maria].filter(Boolean);
+  els.forEach((e) => { e.style.transition = "none"; });
+  fn();
+  // Reading layout back flushes the change at the suppressed value, so putting
+  // the transition back cannot pick it up and animate it after the fact.
+  els.forEach((e) => { e.getBoundingClientRect(); e.style.transition = ""; });
+}
+
 /* `orient` carries either the real bright-limb angle, or -- with no location
  * to compute one from -- the hemisphere flip that stands in for it.
  */
-export function drawMoon({ lit, waxing, distance }, orient = {}, opts = {}){
+export function drawMoon(phase, orient = {}, opts = {}){
   if (!nodes) initMoon();
 
   const known = Number.isFinite(orient.limbAngle);
+  // Two arrivals to snap through, not one: the very first paint, and the
+  // moment a location turns the placeholder orientation into a real one. A
+  // later change -- the hemisphere button, or the sky itself moving on -- is a
+  // real change, and still animates.
+  const arriving = !painted || (known && !knownSeen);
+  painted = true;
+  if (known) knownSeen = true;
+
+  if (arriving) withoutTransition(() => paint(phase, orient, opts, known));
+  else paint(phase, orient, opts, known);
+}
+
+function paint({ lit, waxing, distance }, orient, opts, known){
 
   // With a real angle the disc is simply turned to face the sun, so it is
   // always drawn in its waxing form and the rotation carries the lit side to

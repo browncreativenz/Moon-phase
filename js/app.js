@@ -69,8 +69,10 @@ function inDays(ms, now){
  * happens below -18 deg, where astronomical twilight ends and it is simply
  * night; the blend runs up from there to the horizon.
  */
+const daylight = (sunAlt) => Math.max(0, Math.min(1, (sunAlt + 18) / 18));
+
 function twilight(sunAlt){
-  const t = Math.max(0, Math.min(1, (sunAlt + 18) / 18));
+  const t = daylight(sunAlt);
   const mix = (a, b) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
   const hi = mix([15, 19, 32],  [26, 40, 72]);
   const lo = mix([20, 26, 43],  [54, 68, 106]);
@@ -93,22 +95,38 @@ function altitudeOffset(alt){
 
 const fmtKm = (km) => Math.round(km).toLocaleString();
 
+/* Where the disc sits, which way it faces and how brightly it reads, all from
+ * one place: the reveal draws the same disc as the minute tick, and the two
+ * disagreeing is what makes an arrival lurch.
+ */
+function discInputs(ms){
+  const sky = place ? skyPosition(ms, place.lat, place.lon) : null;
+  const up = sky ? sky.moon.alt > 0 : true;
+  return {
+    sky, up,
+    orient: sky
+      ? { limbAngle: sky.limbAngle, parallacticAngle: sky.parallacticAngle }
+      : { south },
+    /* A moon that has set is dimmed rather than hidden -- it is still the
+       thing you came to look at. How far it can be dimmed depends on what it
+       is sitting on: 0.42 reads as faint against the night sky, but the same
+       value against the pale sky of a daylit hour lands almost exactly on the
+       background and the moon looks switched off. Give the dim back in
+       proportion to how light the sky is. */
+    opts: {
+      moonY: sky ? altitudeOffset(sky.moon.alt) : 0,
+      dim: up ? 1 : 0.42 + 0.25 * (sky ? daylight(sky.sun.alt) : 0)
+    }
+  };
+}
+
 function render(){
   const now = new Date();
   const ms = now.getTime();
   const m = describe(ms);
 
-  const sky = place ? skyPosition(ms, place.lat, place.lon) : null;
-  const up = sky ? sky.moon.alt > 0 : true;
-
-  const orient = sky
-    ? { limbAngle: sky.limbAngle, parallacticAngle: sky.parallacticAngle }
-    : { south };
-
-  drawMoon(m, orient, {
-    moonY: sky ? altitudeOffset(sky.moon.alt) : 0,
-    dim: up ? 1 : 0.42
-  });
+  const { sky, up, orient, opts } = discInputs(ms);
+  drawMoon(m, orient, opts);
 
   if (sky){
     twilight(sky.sun.alt);
@@ -147,19 +165,18 @@ function render(){
  * one pass, on arrival, to hand you the current state.
  */
 function reveal(){
-  const now = Date.now();
-  const target = describe(now);
-  const sky = place ? skyPosition(now, place.lat, place.lon) : null;
-  const orient = sky
-    ? { limbAngle: sky.limbAngle, parallacticAngle: sky.parallacticAngle }
-    : { south };
+  const target = describe(Date.now());
   const t0 = performance.now();
   const DUR = 800;
 
+  /* The inputs are read every frame rather than captured once: a location can
+     land while this is still running, and a reveal drawing a stale orientation
+     over the top of a fresh one is how the disc ends up turning twice. */
   const step = (now) => {
     const k = Math.min(1, (now - t0) / DUR);
     const eased = 1 - Math.pow(1 - k, 3);
-    drawMoon({ ...target, lit: target.lit * eased }, orient, { dim: 1 });
+    const { orient, opts } = discInputs(Date.now());
+    drawMoon({ ...target, lit: target.lit * eased }, orient, opts);
     if (k < 1) requestAnimationFrame(step);
     else render();
   };

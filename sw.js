@@ -5,7 +5,7 @@
  * so a stale build is never left behind.
  */
 
-const VERSION = "moon-v3";
+const VERSION = "moon-v4";
 
 const ASSETS = [
   "./",
